@@ -22,7 +22,6 @@ This application is a self-hosted platform for managing and sharing audio files 
 
 ### Authentication & Security
 - JWT-based authentication via NextAuth.js.
-- Role-based access control for different levels of permissions.
 - Secure file handling with validation and sanitization.
 
 ### User Interface

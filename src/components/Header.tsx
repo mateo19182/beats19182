@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { Menu } from "lucide-react";
+import { Menu, Upload } from "lucide-react";
 
 export function Header() {
   const { data: session } = useSession();
@@ -24,6 +24,10 @@ export function Header() {
               </Link>
               <Link href="/tags" className="hover:text-primary">
                 Tags
+              </Link>
+              <Link href="/upload" className="flex items-center space-x-1 hover:text-primary">
+                <Upload className="h-4 w-4" />
+                <span>Upload</span>
               </Link>
             </nav>
           )}
