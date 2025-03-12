@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Beats19182 - Audio File Manager
 
-## Getting Started
+## Overview
+This application is a self-hosted platform for managing and sharing audio files with a structured tagging system. It allows users to upload files, organize them with tags, and create packs for easy sharing. The entire system runs on a local server without reliance on cloud services.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### File Management
+- Users can upload various file types and store them locally on the server.
+- File metadata (name, type, size, etc.) is stored in a PostgreSQL database.
+- Secure access controls ensure only authorized users can manage files.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Tagging System
+- Users can create and assign multiple tags to files.
+- Tag-based filtering and search enable quick retrieval of relevant files.
+- Smart suggestions for frequently used tags improve organization.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Pack Creation & Sharing
+- Users can group multiple files into "packs."
+- Packs can be shared with unique links.
+- Configurable permissions (e.g., view-only, download access) for shared packs.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Authentication & Security
+- JWT-based authentication via NextAuth.js.
+- Role-based access control for different levels of permissions.
+- Secure file handling with validation and sanitization.
 
-## Learn More
+### User Interface
+- Built with Next.js and shadcn/ui for a clean, modern UX.
+- Drag-and-drop file uploads for convenience.
+- Dynamic search and filtering for efficient navigation.
 
-To learn more about Next.js, take a look at the following resources:
+### Performance & Scalability
+- Uses PostgreSQL with indexing for fast queries.
+- Caching strategies for frequently accessed files and metadata.
+- Nginx as a reverse proxy to handle efficient file serving.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
+- **Frontend:** Next.js (App Router), Tailwind CSS, shadcn/ui
+- **Backend:** Next.js API routes (or Node.js/Express if needed)
+- **Database:** PostgreSQL (via Prisma ORM)
+- **Storage:** Local filesystem or MinIO (self-hosted S3-like storage)
+- **Auth:** NextAuth.js (JWT-based authentication)
+- **Reverse Proxy:** Nginx
+- **Deployment:** Self-hosted on an Ubuntu server
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Future Enhancements
+- Advanced search with full-text indexing.
+- User activity logging and version control.
+- Background jobs for handling large file processing.
+- API for external integrations.
 
-## Deploy on Vercel
+This application is designed for those who want a **powerful, self-hosted alternative to OffTop** with full control over their data. 🚀
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

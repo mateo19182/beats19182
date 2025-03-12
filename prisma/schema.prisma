@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String
+  role          Role      @default(USER)
+  files         File[]
+  packs         Pack[]
+}
+
+model File {
+  id            String    @id @default(cuid())
+  name          String
+  path          String
+  type          String
+  size          Int
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags          Tag[]
+  packs         Pack[]
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Tag {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  files         File[]
+}
+
+model Pack {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  shareLink     String    @unique
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files         File[]
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+}
