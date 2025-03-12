@@ -10,7 +10,9 @@
     "create-admin": "node scripts/create-admin.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "minio:init": "node scripts/check-minio.js",
+    "prestart": "npm run minio:init"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^1.0.0",
@@ -27,6 +29,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.479.0",
+    "minio": "^8.0.4",
     "next": "14.1.0",
     "next-auth": "^4.24.11",
     "react": "^18",

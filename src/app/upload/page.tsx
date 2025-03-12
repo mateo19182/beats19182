@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
@@ -26,20 +26,28 @@ export default function UploadPage() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Function to add a log entry
-  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
-    const newLog: LogEntry = {
-      id: Date.now().toString(),
-      message,
-      timestamp: new Date(),
-      type,
-    };
-    setLogs(prev => [...prev, newLog]);
+  const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
+    setLogs(prev => {
+      // Check if the last log entry is the same to prevent duplicates
+      const lastLog = prev[prev.length - 1];
+      if (lastLog && lastLog.message === message && lastLog.type === type) {
+        return prev;
+      }
+      
+      const newLog: LogEntry = {
+        id: Date.now().toString(),
+        message,
+        timestamp: new Date(),
+        type,
+      };
+      return [...prev, newLog];
+    });
     
     // Scroll to the bottom of logs
     setTimeout(() => {
       logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
-  };
+  }, []);
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -62,6 +70,7 @@ export default function UploadPage() {
   const handleUpload = async (files: File[]) => {
     setIsUploading(true);
     setUploadProgress({});
+    setLogs([]); // Clear previous logs
     
     addLog(`Starting upload of ${files.length} file(s)`, 'info');
     
@@ -69,7 +78,7 @@ export default function UploadPage() {
       for (const file of files) {
         const fileId = file.name + Date.now();
         setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
-        addLog(`Preparing to upload: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`, 'pending');
+        addLog(`Preparing to upload: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`, 'info');
         
         const formData = new FormData();
         formData.append('file', file);

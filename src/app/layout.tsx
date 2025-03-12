@@ -3,6 +3,27 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ClientLayout } from "@/components/ClientLayout";
+import initializeServices from "@/lib/init";
+
+// Initialize services on server startup
+// This is wrapped in a try-catch to prevent the app from crashing if initialization fails
+if (typeof window === 'undefined') {
+  try {
+    initializeServices()
+      .then(success => {
+        if (success) {
+          console.log('Services initialized successfully');
+        } else {
+          console.error('Services initialization failed');
+        }
+      })
+      .catch(error => {
+        console.error('Error initializing services:', error);
+      });
+  } catch (error) {
+    console.error('Error initializing services:', error);
+  }
+}
 
 const inter = Inter({
   subsets: ["latin"],

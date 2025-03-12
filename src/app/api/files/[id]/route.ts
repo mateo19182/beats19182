@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { join } from 'path';
-import { readFile } from 'fs/promises';
-import { stat } from 'fs/promises';
+import { minioClient, BUCKET_NAME } from '@/lib/minio';
+import { Readable } from 'stream';
 
 export async function GET(
   request: NextRequest,
@@ -64,34 +63,35 @@ export async function GET(
       );
     }
 
-    // Get the file path
-    const filePath = join(process.cwd(), fileRecord.path);
-    
     try {
-      // Check if file exists
-      await stat(filePath);
+      // Get the object from MinIO
+      logger.debug(`Retrieving file from MinIO: ${fileRecord.path}`);
+      const dataStream = await minioClient.getObject(BUCKET_NAME, fileRecord.path);
+      
+      // Convert the stream to a buffer
+      const chunks: Buffer[] = [];
+      for await (const chunk of dataStream) {
+        chunks.push(chunk);
+      }
+      const fileBuffer = Buffer.concat(chunks);
+      
+      // Create response with appropriate headers
+      const response = new NextResponse(fileBuffer);
+      
+      // Set content type based on file type
+      response.headers.set('Content-Type', fileRecord.type);
+      response.headers.set('Content-Disposition', `inline; filename="${fileRecord.name}"`);
+      
+      logger.success(`Successfully served file: ${fileRecord.name}`);
+      
+      return response;
     } catch (error) {
-      logger.error(`File not found on disk: ${filePath}`);
+      logger.error(`File not found in MinIO: ${fileRecord.path}`);
       return NextResponse.json(
-        { error: 'File not found on disk' },
+        { error: 'File not found in storage' },
         { status: 404 }
       );
     }
-
-    // Read the file
-    logger.debug(`Reading file from disk: ${filePath}`);
-    const fileBuffer = await readFile(filePath);
-    
-    // Create response with appropriate headers
-    const response = new NextResponse(fileBuffer);
-    
-    // Set content type based on file type
-    response.headers.set('Content-Type', fileRecord.type);
-    response.headers.set('Content-Disposition', `inline; filename="${fileRecord.name}"`);
-    
-    logger.success(`Successfully served file: ${fileRecord.name}`);
-    
-    return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error(`Failed to serve file: ${errorMessage}`, { error });

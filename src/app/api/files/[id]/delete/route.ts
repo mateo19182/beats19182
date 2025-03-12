@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { join } from 'path';
-import { unlink } from 'fs/promises';
-import { stat } from 'fs/promises';
+import { minioClient, BUCKET_NAME } from '@/lib/minio';
 
 export async function DELETE(
   request: NextRequest,
@@ -64,20 +62,14 @@ export async function DELETE(
       );
     }
 
-    // Get the file path
-    const filePath = join(process.cwd(), fileRecord.path);
-    
     try {
-      // Check if file exists on disk
-      await stat(filePath);
-      
-      // Delete the file from disk
-      logger.debug(`Deleting file from disk: ${filePath}`);
-      await unlink(filePath);
-      logger.success(`File deleted from disk: ${filePath}`);
+      // Delete the file from MinIO
+      logger.debug(`Deleting file from MinIO: ${fileRecord.path}`);
+      await minioClient.removeObject(BUCKET_NAME, fileRecord.path);
+      logger.success(`File deleted from MinIO: ${fileRecord.path}`);
     } catch (error) {
-      // File doesn't exist on disk, just log it
-      logger.warn(`File not found on disk: ${filePath}`);
+      // Object doesn't exist in MinIO, just log it
+      logger.warn(`File not found in MinIO or error removing: ${fileRecord.path}`);
     }
 
     // Delete the file record from the database

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { minioClient, BUCKET_NAME, generateObjectName } from '@/lib/minio';
 
 // Maximum file size (100MB)
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -90,26 +88,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'uploads', user.id);
-    logger.debug(`Ensuring upload directory exists: ${uploadsDir}`);
-    await mkdir(uploadsDir, { recursive: true });
+    // Generate a unique object name for MinIO
+    const objectName = generateObjectName(user.id, file.name);
+    logger.debug(`Generated unique object name: ${objectName}`);
 
-    // Generate a unique filename
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${uuidv4()}.${fileExtension}`;
-    const filePath = join(uploadsDir, fileName);
-    logger.debug(`Generated unique filename: ${fileName}`);
-
-    // Convert the file to a Buffer and save it
+    // Convert the file to a Buffer
     logger.debug('Converting file to buffer');
     const buffer = Buffer.from(await file.arrayBuffer());
     
-    logger.debug(`Writing file to disk: ${filePath}`);
-    const writeStartTime = Date.now();
-    await writeFile(filePath, buffer);
-    const writeEndTime = Date.now();
-    logger.success(`File written successfully in ${writeEndTime - writeStartTime}ms`);
+    // Upload the file to MinIO
+    logger.debug(`Uploading file to MinIO: ${objectName}`);
+    const uploadStartTime = Date.now();
+    await minioClient.putObject(BUCKET_NAME, objectName, buffer, buffer.length, {
+      'Content-Type': file.type,
+    });
+    const uploadEndTime = Date.now();
+    logger.success(`File uploaded to MinIO successfully in ${uploadEndTime - uploadStartTime}ms`);
 
     // Create file record in the database
     logger.debug('Creating database record', { tags });
@@ -117,7 +111,7 @@ export async function POST(request: NextRequest) {
     const fileRecord = await prisma.file.create({
       data: {
         name: file.name,
-        path: `uploads/${user.id}/${fileName}`,
+        path: objectName,
         type: file.type,
         size: file.size,
         userId: user.id,

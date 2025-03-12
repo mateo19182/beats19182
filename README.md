@@ -6,7 +6,7 @@ This application is a self-hosted platform for managing and sharing audio files 
 ## Features
 
 ### File Management
-- Users can upload various file types and store them locally on the server.
+- Users can upload various file types and store them securely using MinIO (S3-compatible object storage).
 - File metadata (name, type, size, etc.) is stored in a PostgreSQL database.
 - Secure access controls ensure only authorized users can manage files.
 
@@ -38,10 +38,28 @@ This application is a self-hosted platform for managing and sharing audio files 
 - **Frontend:** Next.js (App Router), Tailwind CSS, shadcn/ui
 - **Backend:** Next.js API routes (or Node.js/Express if needed)
 - **Database:** PostgreSQL (via Prisma ORM)
-- **Storage:** Local filesystem or MinIO (self-hosted S3-like storage)
+- **Storage:** MinIO (S3-compatible object storage)
 - **Auth:** NextAuth.js (JWT-based authentication)
 - **Reverse Proxy:** Nginx
 - **Deployment:** Self-hosted on an Ubuntu server
+
+## Setup and Configuration
+
+### MinIO Configuration
+The application uses MinIO for object storage. You can configure it using the following environment variables:
+
+```
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=beats-audio
+MINIO_REGION=us-east-1
+MINIO_PUBLIC_READ=false
+```
+
+When running with Docker Compose, a MinIO instance is automatically set up and configured.
 
 ## Future Enhancements
 - Advanced search with full-text indexing.

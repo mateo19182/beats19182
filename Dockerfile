@@ -2,8 +2,12 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install netcat and OpenSSL for database connection check and Prisma
-RUN apt-get update && apt-get install -y netcat-openbsd openssl && rm -rf /var/lib/apt/lists/*
+# Install netcat, OpenSSL, curl, and wget for database and MinIO connection checks
+RUN apt-get update && apt-get install -y netcat-openbsd openssl curl wget && rm -rf /var/lib/apt/lists/*
+
+# Install MinIO client
+RUN wget https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc && \
+    chmod +x /usr/local/bin/mc
 
 # Install dependencies first for better caching
 COPY package*.json ./

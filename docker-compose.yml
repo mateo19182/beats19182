@@ -10,6 +10,37 @@ services:
     ports:
       - "5432:5432"
 
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO setup service - runs once to create the bucket
+  minio-setup:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb --ignore-existing myminio/beats-audio;
+      echo 'MinIO setup completed';
+      exit 0;
+      "
+
   app:
     build: .
     ports:
@@ -20,11 +51,20 @@ services:
       - NEXTAUTH_SECRET=your-secret-key-here
       - ADMIN_EMAIL=example@example.com
       - ADMIN_PASSWORD=example
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=beats-audio
     volumes:
       - ./uploads:/app/uploads
     depends_on:
       - db
+      - minio
+      - minio-setup
 
 volumes:
   postgres_data:
-  uploads: 
+  uploads:
+  minio_data: 
