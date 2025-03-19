@@ -28,18 +28,18 @@ services:
       retries: 3
 
   # MinIO setup service - runs once to create the bucket
-  minio-setup:
-    image: minio/mc
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 5;
-      /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin;
-      /usr/bin/mc mb --ignore-existing myminio/beats-audio;
-      echo 'MinIO setup completed';
-      exit 0;
-      "
+  # minio-setup:
+  #   image: minio/mc
+  #   depends_on:
+  #     - minio
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #     sleep 5;
+  #     /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin;
+  #     /usr/bin/mc mb --ignore-existing myminio/beats-audio;
+  #     echo 'MinIO setup completed';
+  #     exit 0;
+  #     "
 
   app:
     build: .
@@ -62,7 +62,7 @@ services:
     depends_on:
       - db
       - minio
-      - minio-setup
+      # - minio-setup
 
 volumes:
   postgres_data:

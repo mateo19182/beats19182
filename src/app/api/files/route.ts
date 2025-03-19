@@ -7,6 +7,15 @@ export async function GET(request: NextRequest) {
   try {
     logger.info('Files fetch request received');
 
+    // Get query parameters
+    const searchParams = request.nextUrl.searchParams;
+    const search = searchParams.get('search') || '';
+    const tagFilter = searchParams.get('tag') || '';
+    const sortBy = searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    
+    logger.debug(`Search params: search=${search}, tag=${tagFilter}, sortBy=${sortBy}, sortOrder=${sortOrder}`);
+
     // Check authentication
     logger.debug('Checking authentication');
     const session = await getServerSession();
@@ -32,17 +41,63 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch all files for the user
-    logger.debug(`Fetching files for user: ${user.id}`);
+    // Build the where clause for filtering
+    const whereClause: any = {
+      userId: user.id,
+    };
+
+    // Add name search if provided
+    if (search) {
+      whereClause.name = {
+        contains: search,
+        mode: 'insensitive', // Case-insensitive search
+      };
+    }
+
+    // Add tag filter if provided
+    if (tagFilter) {
+      whereClause.tags = {
+        some: {
+          name: tagFilter,
+        },
+      };
+    }
+
+    // Validate sort parameters
+    const validSortFields = ['name', 'createdAt', 'size', 'type'];
+    const validSortOrders = ['asc', 'desc'];
+    
+    const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const finalSortOrder = validSortOrders.includes(sortOrder as any) ? sortOrder : 'desc';
+
+    // Build the orderBy object
+    const orderBy: any = {
+      [finalSortBy]: finalSortOrder,
+    };
+
+    // Fetch files for the user with filters and sorting
+    logger.debug(`Fetching files for user: ${user.id} with filters and sorting`);
     const files = await prisma.file.findMany({
-      where: {
-        userId: user.id,
-      },
+      where: whereClause,
       include: {
         tags: true,
       },
-      orderBy: {
-        createdAt: 'desc',
+      orderBy,
+    });
+
+    // Get all unique tags for the user (for the filter dropdown)
+    const allTags = await prisma.tag.findMany({
+      where: {
+        files: {
+          some: {
+            userId: user.id,
+          },
+        },
+      },
+      distinct: ['name'],
+      select: {
+        id: true,
+        name: true,
       },
     });
 
@@ -51,6 +106,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       files,
+      tags: allTags,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -1,0 +1,158 @@
+/* Custom CSS for react-h5-audio-player */
+
+.rhap_container {
+  box-shadow: none !important;
+  padding: 0;
+  background-color: transparent !important;
+  margin-bottom: 4px !important; /* Reduced margin */
+}
+
+/* Make progress bar extremely visible */
+.rhap_progress-bar-show-download {
+  background-color: rgba(0, 0, 0, 0.2) !important; /* Much darker background */
+  height: 12px !important; /* Even taller bar */
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important; /* Add border for definition */
+}
+
+.rhap_progress-filled {
+  background-color: hsl(var(--primary)) !important;
+  height: 12px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 8px hsl(var(--primary)) !important; /* Strong glow effect */
+}
+
+.rhap_progress-container {
+  margin: 0 !important;
+  height: 30px !important; /* Even taller container for better click target */
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+  padding: 0 4px !important; /* Add padding to container */
+}
+
+.rhap_progress-indicator {
+  width: 20px !important;
+  height: 20px !important;
+  top: -4px !important;
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6) !important; /* Stronger shadow */
+  opacity: 1 !important;
+  border: 2px solid white !important; /* White border for contrast */
+}
+
+.rhap_progress-bar {
+  height: 12px !important;
+}
+
+/* Adjust layout for better control visibility */
+.rhap_controls-section {
+  margin-top: 4px !important; /* Reduced */
+  padding-bottom: 0 !important;
+}
+
+.rhap_main-controls {
+  margin-bottom: 0 !important;
+}
+
+.rhap_main-controls-button {
+  color: hsl(var(--foreground)) !important;
+  margin: 0 8px !important; /* More space between buttons */
+}
+
+.rhap_volume-button {
+  color: hsl(var(--foreground)) !important;
+}
+
+.rhap_volume-bar {
+  background-color: rgba(0, 0, 0, 0.2) !important; /* Match progress bar */
+  height: 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.rhap_volume-indicator {
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3) !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.rhap_time {
+  color: hsl(var(--foreground)) !important; /* Darker text for better visibility */
+  font-size: 13px !important; /* Slightly larger */
+  font-weight: 500 !important; /* Bolder */
+}
+
+.rhap_download-progress {
+  background-color: hsl(var(--primary) / 0.5) !important; /* More visible */
+  height: 12px !important;
+  border-radius: 6px !important;
+}
+
+/* Container adjustments for controls placement */
+.rhap_stacked {
+  margin-bottom: 8px !important; /* Reduced */
+}
+
+/* Better layout */
+.rhap_controls-section {
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+/* Ensure the progress knob doesn't disappear */
+.rhap_progress-indicator {
+  display: block !important;
+  pointer-events: none !important;
+}
+
+/* Add these additional styles for the custom player */
+
+.audio-player-custom .rhap_main-controls-button,
+.audio-player-custom .rhap_volume-button {
+  font-size: 24px !important; /* Reduced size slightly */
+  color: hsl(var(--primary)) !important;
+}
+
+.audio-player-custom .rhap_play-pause-button {
+  font-size: 32px !important; /* Reduced size slightly */
+}
+
+.audio-player-custom .rhap_container {
+  background-color: hsl(var(--muted) / 0.2) !important; /* Slightly darker background */
+  border-radius: 8px !important;
+  padding: 6px !important; /* Reduced padding */
+  border: 1px solid rgba(0, 0, 0, 0.1) !important; /* Add light border */
+}
+
+.audio-player-custom .rhap_time {
+  margin: 0 6px !important; /* Reduced */
+}
+
+.audio-player-custom .rhap_volume-container {
+  margin: 0 6px !important; /* Reduced */
+}
+
+/* Improve mobile experience */
+@media (max-width: 768px) {
+  .audio-player-custom .rhap_additional-controls,
+  .audio-player-custom .rhap_volume-container {
+    margin: 0 2px !important; /* Reduced */
+  }
+  
+  .audio-player-custom .rhap_main-controls-button {
+    margin: 0 3px !important; /* Reduced */
+  }
+}
+
+/* Make progress bar much more prominent */
+.audio-player-custom .rhap_progress-filled {
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 8px hsl(var(--primary)) !important; /* Stronger glow */
+}
+
+.audio-player-custom .rhap_progress-indicator {
+  box-shadow: 0 0 10px hsl(var(--primary)) !important; /* Stronger glow on the handle */
+} 

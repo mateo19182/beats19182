@@ -6,21 +6,9 @@ export default function Home() {
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold">Welcome to Beats19182</h1>
         <p className="text-xl text-muted-foreground">
-          Your self-hosted platform for managing and sharing audio files
+          Self-hosted platform for managing and sharing audio files
         </p>
       </div>
-
-      <div className="mt-12 grid gap-8 md:grid-cols-2">
-        <div className="p-6 rounded-lg border">
-          <h2 className="text-2xl font-semibold mb-4">For Creators</h2>
-          <ul className="space-y-2">
-            <li>✨ Upload and organize your audio files</li>
-            <li>🏷️ Create custom tags for easy categorization</li>
-            <li>📦 Bundle files into shareable packs</li>
-            <li>🔄 Keep track of your file versions</li>
-          </ul>
-        </div>
-
         <div className="p-6 rounded-lg border">
           <h2 className="text-2xl font-semibold mb-4">Getting Started</h2>
           <div className="space-y-4">
@@ -39,6 +27,5 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

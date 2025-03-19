@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Play, Pause, Download, Music, Trash2 } from 'lucide-react';
+import { Play, Download, Music, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Tag } from '@prisma/client';
+import { playAudio, AudioFile } from '@/components/GlobalAudioPlayer';
 
 interface FileCardProps {
   id: string;
@@ -19,19 +20,17 @@ interface FileCardProps {
 
 export function FileCard({ id, name, type, size, createdAt, tags, onDelete }: FileCardProps) {
   const { toast } = useToast();
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
   
-  const handlePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
+  const handlePlay = () => {
+    const audioFile: AudioFile = {
+      id,
+      name,
+      type,
+      size,
+      createdAt,
+    };
+    playAudio(audioFile);
   };
   
   const handleDownload = () => {
@@ -120,10 +119,10 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete }: Fi
           <Button
             variant="ghost"
             size="icon"
-            onClick={handlePlayPause}
-            title={isPlaying ? 'Pause' : 'Play'}
+            onClick={handlePlay}
+            title="Play"
           >
-            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            <Play className="h-5 w-5" />
           </Button>
           
           <Button
@@ -147,14 +146,6 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete }: Fi
           </Button>
         </div>
       </div>
-      
-      <audio 
-        ref={audioRef} 
-        src={`/api/files/${id}`} 
-        onEnded={() => setIsPlaying(false)}
-        className="w-full"
-        controls
-      />
     </div>
   );
 } 

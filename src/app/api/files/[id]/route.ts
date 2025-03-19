@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { minioClient, BUCKET_NAME } from '@/lib/minio';
-import { Readable } from 'stream';
 
 export async function GET(
   request: NextRequest,
@@ -64,27 +63,80 @@ export async function GET(
     }
 
     try {
-      // Get the object from MinIO
-      logger.debug(`Retrieving file from MinIO: ${fileRecord.path}`);
-      const dataStream = await minioClient.getObject(BUCKET_NAME, fileRecord.path);
+      // Get the file stat to get its size
+      const stat = await minioClient.statObject(BUCKET_NAME, fileRecord.path);
+      const fileSize = stat.size;
       
-      // Convert the stream to a buffer
-      const chunks: Buffer[] = [];
-      for await (const chunk of dataStream) {
-        chunks.push(chunk);
+      // Parse Range header
+      const rangeHeader = request.headers.get('range');
+      
+      if (!rangeHeader) {
+        // No range requested, serve the full file
+        logger.debug(`Retrieving full file from MinIO: ${fileRecord.path}`);
+        const dataStream = await minioClient.getObject(BUCKET_NAME, fileRecord.path);
+        
+        // Convert the stream to a buffer
+        const chunks: Buffer[] = [];
+        for await (const chunk of dataStream) {
+          chunks.push(chunk);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+        
+        // Create response with appropriate headers
+        const response = new NextResponse(fileBuffer);
+        
+        // Set content type based on file type
+        response.headers.set('Content-Type', fileRecord.type);
+        response.headers.set('Content-Disposition', `inline; filename="${fileRecord.name}"`);
+        response.headers.set('Content-Length', fileSize.toString());
+        response.headers.set('Accept-Ranges', 'bytes');
+        
+        logger.success(`Successfully served full file: ${fileRecord.name}`);
+        
+        return response;
+      } else {
+        // Range request
+        const range = rangeHeader.replace(/bytes=/, '').split('-');
+        const start = parseInt(range[0], 10);
+        const end = range[1] ? parseInt(range[1], 10) : fileSize - 1;
+        
+        if (isNaN(start) || start < 0) {
+          logger.error(`Invalid range request for file: ${fileId}`);
+          return NextResponse.json(
+            { error: 'Invalid range request' },
+            { status: 416 }
+          );
+        }
+        
+        const validEnd = Math.min(end, fileSize - 1);
+        const chunkSize = validEnd - start + 1;
+        
+        // MinIO getPartialObject takes inclusive range
+        logger.debug(`Retrieving partial file from MinIO: ${fileRecord.path}, range: ${start}-${validEnd}`);
+        const dataStream = await minioClient.getPartialObject(BUCKET_NAME, fileRecord.path, start, validEnd);
+        
+        // Convert the stream to a buffer
+        const chunks: Buffer[] = [];
+        for await (const chunk of dataStream) {
+          chunks.push(chunk);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+        
+        // Create response with appropriate headers for partial content
+        const response = new NextResponse(fileBuffer, {
+          status: 206 // Partial Content
+        });
+        
+        response.headers.set('Content-Type', fileRecord.type);
+        response.headers.set('Content-Range', `bytes ${start}-${validEnd}/${fileSize}`);
+        response.headers.set('Content-Length', chunkSize.toString());
+        response.headers.set('Accept-Ranges', 'bytes');
+        response.headers.set('Content-Disposition', `inline; filename="${fileRecord.name}"`);
+        
+        logger.success(`Successfully served partial file: ${fileRecord.name}, range: ${start}-${validEnd}`);
+        
+        return response;
       }
-      const fileBuffer = Buffer.concat(chunks);
-      
-      // Create response with appropriate headers
-      const response = new NextResponse(fileBuffer);
-      
-      // Set content type based on file type
-      response.headers.set('Content-Type', fileRecord.type);
-      response.headers.set('Content-Disposition', `inline; filename="${fileRecord.name}"`);
-      
-      logger.success(`Successfully served file: ${fileRecord.name}`);
-      
-      return response;
     } catch (error) {
       logger.error(`File not found in MinIO: ${fileRecord.path}`);
       return NextResponse.json(
