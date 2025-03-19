@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { TagsInput } from '@/components/TagsInput';
 
 // Define a log entry type
 type LogEntry = {
@@ -19,7 +20,6 @@ type LogEntry = {
 export default function UploadPage() {
   const { toast } = useToast();
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -48,24 +48,6 @@ export default function UploadPage() {
       logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   }, []);
-
-  const handleAddTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddTag();
-    }
-  };
 
   const handleUpload = async (files: File[]) => {
     setIsUploading(true);
@@ -262,48 +244,11 @@ export default function UploadPage() {
               Tags help you organize and find your audio files more easily.
             </p>
             
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1">
-                <Label htmlFor="tag-input" className="sr-only">Add Tag</Label>
-                <Input
-                  id="tag-input"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Enter a tag"
-                  disabled={isUploading}
-                />
-              </div>
-              <Button 
-                onClick={handleAddTag} 
-                disabled={!tagInput.trim() || isUploading}
-              >
-                Add
-              </Button>
-            </div>
-            
-            {tags.length > 0 && (
-              <div>
-                <Label className="mb-2 block">Current Tags</Label>
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag, index) => (
-                    <div 
-                      key={index} 
-                      className="bg-secondary text-secondary-foreground px-3 py-1 rounded-full flex items-center gap-1"
-                    >
-                      <span>{tag}</span>
-                      <button 
-                        onClick={() => handleRemoveTag(tag)}
-                        className="text-secondary-foreground/70 hover:text-secondary-foreground"
-                        disabled={isUploading}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <TagsInput
+              tags={tags}
+              onTagsChange={setTags}
+              disabled={isUploading}
+            />
           </div>
           
           <div className="bg-muted p-4 rounded-lg">

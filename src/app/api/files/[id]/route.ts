@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import { minioClient, BUCKET_NAME } from '@/lib/minio';
 import { Readable } from 'stream';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/files/[id] - Get a specific file
 export async function GET(
   request: NextRequest,
@@ -67,6 +69,56 @@ export async function GET(
   } catch (error: any) {
     logger.error('Error in file GET handler:', { error: error.message || 'Unknown error' });
     return NextResponse.json({ error: 'Failed to process file request' }, { status: 500 });
+  }
+}
+
+// PATCH /api/files/[id] - Update file metadata
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+    const { tags } = await request.json();
+    
+    // Get the current file
+    const file = await prisma.file.findUnique({
+      where: { id },
+      include: {
+        user: true,
+      },
+    });
+    
+    if (!file) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+    
+    // Update the file tags
+    const updatedFile = await prisma.file.update({
+      where: { id },
+      data: {
+        tags: {
+          set: [], // Clear existing tags
+          connectOrCreate: tags.map((tag: string) => ({
+            where: { name: tag },
+            create: { name: tag },
+          })),
+        },
+      },
+      include: {
+        tags: true,
+      },
+    });
+    
+    logger.info('Updated file tags', { fileId: id });
+    
+    return NextResponse.json({
+      message: 'File tags updated successfully',
+      file: updatedFile,
+    });
+  } catch (error: any) {
+    logger.error('Error updating file tags:', { error: error.message || 'Unknown error' });
+    return NextResponse.json({ error: 'Failed to update file tags' }, { status: 500 });
   }
 }
 

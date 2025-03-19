@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Play, Download, Music, Trash2, Plus } from 'lucide-react';
+import { Play, Download, Music, Trash2, Plus, Edit, Tag as TagIcon, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Tag } from '@prisma/client';
 import { playAudio, AudioFile } from '@/components/GlobalAudioPlayer';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Loader2 } from 'lucide-react';
+import { TagsInput } from '@/components/TagsInput';
+import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
 
 interface FileCardProps {
   id: string;
@@ -22,11 +25,15 @@ interface FileCardProps {
 }
 
 export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allowAddToPack = true }: FileCardProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [packs, setPacks] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingPacks, setIsLoadingPacks] = useState(false);
   const [showAddToPackMenu, setShowAddToPackMenu] = useState(false);
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [currentTags, setCurrentTags] = useState<string[]>(tags.map(tag => tag.name));
+  const [isSavingTags, setIsSavingTags] = useState(false);
   
   // Fetch user packs when dropdown is opened
   useEffect(() => {
@@ -194,6 +201,66 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allo
   // Get file extension
   const fileExtension = name.split('.').pop()?.toUpperCase() || '';
   
+  // Handle saving tags
+  const handleSaveTags = async () => {
+    try {
+      setIsSavingTags(true);
+      
+      const response = await fetch(`/api/files/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tags: currentTags,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update tags');
+      }
+      
+      const data = await response.json();
+      
+      // Update the local tags
+      if (onDelete) {
+        // If onDelete is provided, we need to refresh the parent component
+        onDelete();
+      }
+      
+      setIsEditingTags(false);
+      
+      toast({
+        title: 'Tags updated',
+        description: 'The file tags have been updated successfully.',
+      });
+    } catch (error) {
+      console.error('Error updating tags:', error);
+      
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update tags',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingTags(false);
+    }
+  };
+  
+  // Cancel tag editing
+  const handleCancelEditTags = () => {
+    // Reset to original tags
+    setCurrentTags(tags.map(tag => tag.name));
+    setIsEditingTags(false);
+  };
+  
+  // Handle tag click
+  const handleTagClick = (e: React.MouseEvent, tagName: string) => {
+    e.stopPropagation(); // Prevent parent div click handler
+    router.push(`/tags/${encodeURIComponent(tagName)}`);
+  };
+  
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
       <div className="p-4 flex items-center space-x-4">
@@ -211,16 +278,85 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allo
             <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
           </div>
           
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {tags.map((tag) => (
-                <span 
-                  key={tag.id} 
-                  className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full text-xs"
+          {isEditingTags ? (
+            <div className="mt-3">
+              <TagsInput 
+                tags={currentTags}
+                onTagsChange={setCurrentTags}
+                disabled={isSavingTags}
+                showLabel={false}
+                placeholder="Add tags..."
+              />
+              <div className="flex gap-2 mt-2">
+                <Button 
+                  size="sm" 
+                  variant="default" 
+                  onClick={handleSaveTags}
+                  disabled={isSavingTags}
+                  className="h-7 text-xs"
                 >
-                  {tag.name}
-                </span>
-              ))}
+                  {isSavingTags ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Saving
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3 w-3 mr-1" />
+                      Save
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={handleCancelEditTags}
+                  disabled={isSavingTags}
+                  className="h-7 text-xs"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              {tags.length > 0 ? (
+                <>
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge 
+                        key={tag.id} 
+                        variant="secondary"
+                        className="flex items-center gap-1 px-2 py-1 text-xs cursor-pointer hover:bg-secondary/80"
+                        onClick={(e) => handleTagClick(e, tag.name)}
+                      >
+                        <TagIcon className="h-3 w-3 opacity-70" />
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                  <Button 
+                    onClick={() => setIsEditingTags(true)} 
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  onClick={() => setIsEditingTags(true)} 
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Tags
+                </Button>
+              )}
             </div>
           )}
         </div>

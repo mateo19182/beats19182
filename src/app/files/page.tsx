@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FileCard } from '@/components/FileCard';
 import { GlobalAudioPlayer } from '@/components/GlobalAudioPlayer';
 import { useToast } from '@/components/ui/use-toast';
@@ -40,8 +41,10 @@ interface Tag {
   name: string;
 }
 
-export default function FilesPage() {
+// Create a component that uses searchParams
+function FilesPageContent() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [files, setFiles] = useState<File[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +56,14 @@ export default function FilesPage() {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Check for tag parameter in URL on mount
+  useEffect(() => {
+    const tagParam = searchParams.get('tag');
+    if (tagParam) {
+      setSelectedTag(tagParam);
+    }
+  }, [searchParams]);
 
   // Debounce search query
   useEffect(() => {
@@ -316,5 +327,21 @@ export default function FilesPage() {
       {/* Global Audio Player */}
       <GlobalAudioPlayer />
     </div>
+  );
+}
+
+// Wrap with Suspense in the default export
+export default function FilesPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-8 pb-28 sm:pb-24">
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+          <p className="text-muted-foreground">Loading your files...</p>
+        </div>
+      </div>
+    }>
+      <FilesPageContent />
+    </Suspense>
   );
 } 
