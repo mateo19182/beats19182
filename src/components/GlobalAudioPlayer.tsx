@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import AudioPlayer from 'react-h5-audio-player';
-import 'react-h5-audio-player/lib/styles.css';
-import '@/styles/audio-player.css';
+import { useState, useEffect, useCallback } from 'react';
 import { ChevronUp, ChevronDown, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { WaveformPlayer } from './WaveformPlayer';
 
 export interface AudioFile {
   id: string;
@@ -33,15 +31,14 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
   const [currentFile, setCurrentFile] = useState<AudioFile | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [audioSrc, setAudioSrc] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const playerRef = useRef<any>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const handleAudioPlay = useCallback((event: Event) => {
     const customEvent = event as CustomEvent<AudioFile>;
     const file = customEvent.detail;
     setCurrentFile(file);
-    setIsLoading(true);
     setAudioSrc(`/api/files/${file.id}`);
+    setIsPlaying(true);
     setIsExpanded(true); // Auto-expand when a new file is played
   }, []);
 
@@ -55,15 +52,8 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
     };
   }, [handleAudioPlay]);
 
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleLoadedData = () => {
-    setIsLoading(false);
+  const handlePlayPause = () => {
+    setIsPlaying(prev => !prev);
   };
 
   if (!isVisible || !currentFile) return null;
@@ -89,30 +79,21 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
         </div>
         <div className="truncate flex-1">
           <div className="font-medium truncate">{currentFile.name}</div>
-          <div className="text-xs text-muted-foreground">
-            {isLoading ? 'Loading...' : playerRef.current?.audio?.current?.duration 
-              ? `Duration: ${formatTime(playerRef.current.audio.current.duration)}`
-              : ''}
-          </div>
         </div>
       </div>
       
       {isExpanded && (
         <div className="px-4 pt-0 pb-1">
-          <AudioPlayer
-            ref={playerRef}
-            src={audioSrc}
-            autoPlay
-            showJumpControls={true}
-            showSkipControls={false}
-            listenInterval={1000}
-            autoPlayAfterSrcChange={true}
-            onLoadedData={handleLoadedData}
-            className="audio-player-custom"
-            style={{
-              boxShadow: 'none',
-              background: 'transparent'
-            }}
+          <WaveformPlayer 
+            audioUrl={audioSrc}
+            playing={isPlaying}
+            onPlayPause={handlePlayPause}
+            height={60}
+            progressColor="hsl(var(--primary))"
+            waveColor="rgba(0, 0, 0, 0.15)"
+            barWidth={2}
+            barGap={2}
+            barRadius={2}
           />
         </div>
       )}

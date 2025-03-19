@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Play, Download, Music, Trash2 } from 'lucide-react';
+import { Play, Download, Music, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Tag } from '@prisma/client';
 import { playAudio, AudioFile } from '@/components/GlobalAudioPlayer';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Loader2 } from 'lucide-react';
 
 interface FileCardProps {
   id: string;
@@ -16,11 +18,49 @@ interface FileCardProps {
   createdAt: Date;
   tags: Tag[];
   onDelete?: () => void;
+  allowAddToPack?: boolean;
 }
 
-export function FileCard({ id, name, type, size, createdAt, tags, onDelete }: FileCardProps) {
+export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allowAddToPack = true }: FileCardProps) {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [packs, setPacks] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingPacks, setIsLoadingPacks] = useState(false);
+  const [showAddToPackMenu, setShowAddToPackMenu] = useState(false);
+  
+  // Fetch user packs when dropdown is opened
+  useEffect(() => {
+    if (showAddToPackMenu && allowAddToPack) {
+      fetchUserPacks();
+    }
+  }, [showAddToPackMenu, allowAddToPack]);
+  
+  // Fetch user packs for dropdown
+  const fetchUserPacks = async () => {
+    try {
+      setIsLoadingPacks(true);
+      
+      const response = await fetch('/api/packs');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch packs');
+      }
+      
+      const data = await response.json();
+      setPacks(data.packs.map((pack: any) => ({ id: pack.id, name: pack.name })));
+    } catch (error) {
+      console.error('Error fetching packs:', error);
+      
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load packs',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingPacks(false);
+    }
+  };
   
   const handlePlay = () => {
     const audioFile: AudioFile = {
@@ -72,6 +112,76 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete }: Fi
         setIsDeleting(false);
       }
     }
+  };
+  
+  // Add file to pack
+  const handleAddToPack = async (packId: string) => {
+    try {
+      // Get current pack
+      const packResponse = await fetch(`/api/packs/${packId}`);
+      
+      if (!packResponse.ok) {
+        const errorData = await packResponse.json();
+        throw new Error(errorData.error || 'Failed to fetch pack');
+      }
+      
+      const { pack } = await packResponse.json();
+      
+      // Check if file is already in the pack
+      const fileExists = pack.files.some((file: any) => file.id === id);
+      
+      if (fileExists) {
+        toast({
+          title: 'File already in pack',
+          description: 'This file is already in the selected pack.',
+        });
+        return;
+      }
+      
+      // Add file to pack
+      const fileIds = [...pack.files.map((file: any) => file.id), id];
+      
+      const updateResponse = await fetch(`/api/packs/${packId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileIds,
+        }),
+      });
+      
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        throw new Error(errorData.error || 'Failed to add file to pack');
+      }
+      
+      toast({
+        title: 'File added to pack',
+        description: `The file has been added to "${pack.name}".`,
+      });
+      
+      // Close the dropdown
+      setShowAddToPackMenu(false);
+    } catch (error) {
+      console.error('Error adding file to pack:', error);
+      
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to add file to pack',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Create new pack with this file
+  const handleCreateNewPack = () => {
+    // Create a new URL with file ID in the search parameters
+    const url = new URL('/packs/new', window.location.origin);
+    url.searchParams.append('fileId', id);
+    
+    // Navigate to the new pack page
+    window.location.href = url.toString();
   };
   
   // Format file size
@@ -133,6 +243,48 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete }: Fi
           >
             <Download className="h-5 w-5" />
           </Button>
+          
+          {allowAddToPack && (
+            <DropdownMenu open={showAddToPackMenu} onOpenChange={setShowAddToPackMenu}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Add to Pack"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Add to Pack</DropdownMenuLabel>
+                
+                {isLoadingPacks ? (
+                  <DropdownMenuItem disabled>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading packs...
+                  </DropdownMenuItem>
+                ) : packs.length === 0 ? (
+                  <DropdownMenuItem disabled>No packs available</DropdownMenuItem>
+                ) : (
+                  packs.map((pack) => (
+                    <DropdownMenuItem 
+                      key={pack.id} 
+                      onClick={() => handleAddToPack(pack.id)}
+                    >
+                      <Music className="h-4 w-4 mr-2" />
+                      {pack.name}
+                    </DropdownMenuItem>
+                  ))
+                )}
+                
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleCreateNewPack}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Pack
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           
           <Button
             variant="ghost"

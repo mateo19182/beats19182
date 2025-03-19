@@ -1,7 +1,7 @@
 # Beats19182 - Audio File Manager
 
 ## TODO
-- [ ] Dark mode
+- [ ] Dark mode and tailwind
 
 ## Overview
 This application is a self-hosted platform for managing and sharing audio files with a structured tagging system. It allows users to upload files, organize them with tags, and create packs for easy sharing. The entire system runs on a local server without reliance on cloud services.

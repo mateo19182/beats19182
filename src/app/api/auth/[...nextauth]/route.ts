@@ -4,11 +4,12 @@ import NextAuth, { DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
+// Extend next-auth types without using the 'user' property that conflicts
 declare module "next-auth" {
-  interface Session extends DefaultSession {
-    user?: {
+  interface Session {
+    user: {
       id: string;
-    } & DefaultSession["user"]
+    } & DefaultSession["user"];
   }
 }
 

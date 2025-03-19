@@ -1,0 +1,55 @@
+/* Styling for the WaveformPlayer */
+
+/* Improve appearance of the volume slider */
+input[type=range] {
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type=range]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Improve waveform visualization */
+.wavesurfer-container {
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Enhance hover effect on timeline */
+.wavesurfer-region:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Styling focus states */
+button:focus {
+  outline: 2px solid hsl(var(--primary) / 0.4);
+  outline-offset: 2px;
+}
+
+input[type=range]:focus {
+  outline: 2px solid hsl(var(--primary) / 0.4);
+  outline-offset: 2px;
+} 
