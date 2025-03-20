@@ -31,7 +31,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Beats19182 - Audio File Manager",
+  title: "Beats19182",
   description: "Self-hosted audio file management and sharing platform",
 };
 

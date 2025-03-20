@@ -356,7 +356,7 @@ export default function PackDetailPage() {
         
         {/* Right column - All files */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Your Audio Files</h2>
+          <h2 className="text-xl font-semibold mb-4">Files</h2>
           
           {isLoadingFiles ? (
             <div className="flex items-center justify-center py-8">

@@ -145,7 +145,7 @@ function FilesPageContent() {
     <div className="container mx-auto py-8 pb-28 sm:pb-24">
       <div className="flex flex-col space-y-4 mb-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Your Audio Files</h1>
+          <h1 className="text-3xl font-bold">Files</h1>
           <a 
             href="/upload" 
             className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
