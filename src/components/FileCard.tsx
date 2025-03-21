@@ -123,7 +123,13 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
   };
   
   const handleDownload = () => {
-    window.open(`/api/files/${id}`, '_blank');
+    // Create a temporary anchor element
+    const link = document.createElement('a');
+    link.href = `/api/files/${id}`;
+    link.download = name; // Set the download attribute with the file name
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
   
   const handleDelete = async () => {

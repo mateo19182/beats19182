@@ -80,8 +80,14 @@ export default function SharedPackPage() {
   };
   
   // Handle download
-  const handleDownload = (fileId: string) => {
-    window.open(`/api/files/${fileId}`, '_blank');
+  const handleDownload = (file: File) => {
+    // Create a temporary anchor element
+    const link = document.createElement('a');
+    link.href = `/api/files/${file.id}`;
+    link.download = file.name; // Set the download attribute with the file name
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
   
   // Format file size
@@ -186,7 +192,7 @@ export default function SharedPackPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDownload(file.id)}
+                      onClick={() => handleDownload(file)}
                       title="Download"
                     >
                       <Download className="h-5 w-5" />

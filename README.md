@@ -47,14 +47,13 @@ run docker compose up
 - bugs
  - on create new pack, weird color
  - on change tag, need to refresh page
- . need to refresh on upload
+ - need to refresh on upload
+ - import scripts from offtop
 - public facing page with my music
 - actually good UI
-- User activity logging and version control.
-- Background jobs for handling large file processing.
-- API for external integrations.
+- User activity logging
+- Background jobs for handling large file processing and imports
+- API for external integrations
 - mobile
 - Dark mode
 - visualizer
-
-

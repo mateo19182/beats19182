@@ -3,14 +3,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Play, Pause, Edit, Check } from 'lucide-react';
+import { TagsInput } from '@/components/TagsInput';
+import { playAudio, AudioFile } from '@/components/GlobalAudioPlayer';
+
+// Define a separate interface to track file metadata 
+interface FileMetadata {
+  id: string;
+  file: File;
+  tags: string[];
+  previewUrl: string;
+  displayName: string; // Custom filename for display and upload
+  isEditingName: boolean; // Track if we're currently editing the name
+}
 
 interface FileUploadProps {
-  onUpload: (files: File[]) => void;
+  onUpload: (files: File[], fileTags: Record<string, string[]>, fileNames: Record<string, string>) => void;
   multiple?: boolean;
   accept?: string;
   maxSize?: number; // in MB
-  disabled?: boolean; // Add disabled prop
+  disabled?: boolean;
+  suggestedTags?: string[]; // Optional array of suggested tags for autocomplete
 }
 
 export function FileUpload({
@@ -19,9 +32,11 @@ export function FileUpload({
   accept = 'audio/*',
   maxSize = 100, // Default 100MB
   disabled = false, // Default to not disabled
+  suggestedTags = [] // Default to empty array
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileEntries, setFileEntries] = useState<FileMetadata[]>([]);
+  const [currentPlayingIndex, setCurrentPlayingIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -57,28 +72,42 @@ export function FileUpload({
     });
 
     if (validFiles.length > 0) {
+      // Create file metadata entries
+      const newEntries = validFiles.map(file => ({
+        id: `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        file: file,
+        tags: [],
+        previewUrl: URL.createObjectURL(file),
+        displayName: file.name,
+        isEditingName: false
+      }));
+
       if (multiple) {
-        setSelectedFiles(prev => [...prev, ...validFiles]);
+        setFileEntries(prev => [...prev, ...newEntries]);
       } else {
-        setSelectedFiles(validFiles.slice(0, 1));
+        // Clean up previous preview URLs to avoid memory leaks
+        fileEntries.forEach(entry => {
+          URL.revokeObjectURL(entry.previewUrl);
+        });
+        setFileEntries(newEntries.slice(0, 1));
       }
     }
   };
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    if (disabled) return; // Don't allow drag if disabled
+    if (disabled) return;
     e.preventDefault();
     setIsDragging(true);
   };
 
   const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    if (disabled) return; // Don't process if disabled
+    if (disabled) return;
     e.preventDefault();
     setIsDragging(false);
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    if (disabled) return; // Don't allow drop if disabled
+    if (disabled) return;
     e.preventDefault();
     setIsDragging(false);
     
@@ -89,16 +118,65 @@ export function FileUpload({
   };
 
   const removeFile = (index: number) => {
-    if (disabled) return; // Don't allow removal if disabled
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    if (disabled) return;
+    
+    // Revoke the object URL to avoid memory leaks
+    URL.revokeObjectURL(fileEntries[index].previewUrl);
+    
+    // Reset playing state if removing the current playing file
+    if (currentPlayingIndex === index) {
+      setCurrentPlayingIndex(null);
+    } else if (currentPlayingIndex !== null && currentPlayingIndex > index) {
+      // Adjust the currentPlayingIndex if we're removing a file before it
+      setCurrentPlayingIndex(currentPlayingIndex - 1);
+    }
+    
+    setFileEntries(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleUpload = () => {
-    if (disabled) return; // Don't allow upload if disabled
-    if (selectedFiles.length > 0) {
-      onUpload(selectedFiles);
-      // Clear selected files after upload
-      setSelectedFiles([]);
+    if (disabled) return;
+    if (fileEntries.length > 0) {
+      // Create a mapping of file names to their tags
+      const fileTagsMap: Record<string, string[]> = {};
+      const customFilenames: Record<string, string> = {};
+      const filesToUpload: File[] = [];
+      
+      // Loop through each file entry
+      fileEntries.forEach((entry, index) => {
+        // Safety check to ensure entry and file are valid
+        if (!entry || !entry.file) return;
+        
+        // Add the file to our array
+        filesToUpload.push(entry.file);
+        
+        // Store tags using index to guarantee correct matching
+        // Ensure tags is an array
+        fileTagsMap[index.toString()] = Array.isArray(entry.tags) ? entry.tags : [];
+        
+        // Store custom filenames if they differ from the original
+        if (entry.displayName && entry.file.name && entry.displayName !== entry.file.name) {
+          customFilenames[index.toString()] = entry.displayName;
+        }
+      });
+
+      // Log the final data for debugging
+      console.log("Files to upload:", filesToUpload.map(f => f.name));
+      console.log("Tags map:", fileTagsMap);
+      console.log("Custom filenames:", customFilenames);
+
+      // Upload the files with their tag information and custom names
+      onUpload(filesToUpload, fileTagsMap, customFilenames);
+      
+      // Clean up preview URLs after upload
+      fileEntries.forEach(entry => {
+        if (entry && entry.previewUrl) {
+          URL.revokeObjectURL(entry.previewUrl);
+        }
+      });
+      
+      setFileEntries([]);
+      setCurrentPlayingIndex(null);
     } else {
       toast({
         title: 'No files selected',
@@ -106,6 +184,110 @@ export function FileUpload({
         variant: 'destructive',
       });
     }
+  };
+
+  const handlePlayAudio = (index: number) => {
+    if (disabled) return;
+    
+    // If we're already playing this file, mark it as not playing
+    if (currentPlayingIndex === index) {
+      setCurrentPlayingIndex(null);
+      return;
+    }
+    
+    setCurrentPlayingIndex(index);
+    
+    // Use the global audio player
+    const entry = fileEntries[index];
+    if (entry && entry.previewUrl) {
+      // Create an AudioFile object for the global player
+      const audioFile: AudioFile = {
+        id: entry.id,
+        name: entry.displayName, // Use display name instead of original name
+        type: entry.file.type,
+        size: entry.file.size,
+        createdAt: new Date(),
+        src: entry.previewUrl
+      };
+      
+      // Set a custom event handler to update our playing state
+      const handleGlobalPlayerChange = (e: Event) => {
+        const customEvent = e as CustomEvent<AudioFile>;
+        if (customEvent.detail.id !== entry.id) {
+          // Another file was loaded in the global player
+          setCurrentPlayingIndex(null);
+        }
+        
+        // Remove this event listener
+        window.removeEventListener('audio:play', handleGlobalPlayerChange);
+      };
+      
+      // Listen for global player events
+      window.addEventListener('audio:play', handleGlobalPlayerChange);
+      
+      // Use the global player
+      playAudio(audioFile);
+    }
+  };
+
+  const handleTagsChange = (index: number, newTags: string[]) => {
+    if (disabled) return;
+    
+    // Make sure to only store clean, non-empty tags
+    const cleanTags = Array.isArray(newTags) ? newTags
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0) : [];
+    
+    setFileEntries(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        tags: cleanTags
+      };
+      return updated;
+    });
+  };
+  
+  // Toggle filename editing mode
+  const toggleFilenameEdit = (index: number) => {
+    if (disabled) return;
+    
+    setFileEntries(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        isEditingName: !updated[index].isEditingName
+      };
+      return updated;
+    });
+  };
+  
+  // Update the filename
+  const updateFilename = (index: number, newName: string) => {
+    if (disabled) return;
+    
+    // Don't allow empty filenames
+    if (!newName.trim()) return;
+    
+    setFileEntries(prev => {
+      const updated = [...prev];
+      
+      // Ensure we preserve the file extension
+      const originalExt = updated[index].file.name.split('.').pop() || '';
+      let displayName = newName.trim();
+      
+      // Add extension if it's missing
+      if (!displayName.endsWith(`.${originalExt}`)) {
+        displayName = `${displayName}.${originalExt}`;
+      }
+      
+      updated[index] = {
+        ...updated[index],
+        displayName,
+        isEditingName: false
+      };
+      return updated;
+    });
   };
 
   return (
@@ -138,29 +320,103 @@ export function FileUpload({
         </p>
       </div>
 
-      {selectedFiles.length > 0 && (
+      {fileEntries.length > 0 && (
         <div className="space-y-2">
           <Label>Selected Files</Label>
           <ul className="border rounded-md divide-y">
-            {selectedFiles.map((file, index) => (
-              <li key={index} className="flex items-center justify-between p-2">
-                <div className="flex-1 truncate">
-                  <p className="font-medium truncate">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / (1024 * 1024)).toFixed(2)} MB
-                  </p>
+            {fileEntries.map((entry, index) => (
+              <li key={entry.id} className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1 truncate">
+                    {entry.isEditingName ? (
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          defaultValue={entry.displayName.split('.')[0]} // Remove extension for editing
+                          className="py-0 px-2 h-7 text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              updateFilename(index, e.currentTarget.value);
+                            } else if (e.key === 'Escape') {
+                              toggleFilenameEdit(index);
+                            }
+                          }}
+                          onBlur={(e) => updateFilename(index, e.target.value)}
+                          autoFocus
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            const input = document.querySelector(`input[default-value="${entry.displayName.split('.')[0]}"]`) as HTMLInputElement;
+                            updateFilename(index, input?.value || entry.displayName);
+                          }}
+                          disabled={disabled}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <p className="font-medium truncate">{entry.displayName}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => toggleFilenameEdit(index)}
+                          disabled={disabled}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {(entry.file.size / (1024 * 1024)).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlayAudio(index);
+                      }}
+                      disabled={disabled}
+                    >
+                      {currentPlayingIndex === index ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                      disabled={disabled}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                    e.stopPropagation();
-                    removeFile(index);
-                  }}
-                  disabled={disabled}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                
+                {/* Tags input for each file */}
+                <div className="mt-2">
+                  <TagsInput
+                    tags={entry.tags || []}
+                    onTagsChange={(newTags) => handleTagsChange(index, newTags)}
+                    disabled={disabled}
+                    showLabel={false}
+                    placeholder="Add tags for this file..."
+                    suggestedTags={Array.isArray(suggestedTags) ? suggestedTags : []}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -169,10 +425,10 @@ export function FileUpload({
 
       <Button
         onClick={handleUpload}
-        disabled={selectedFiles.length === 0 || disabled}
+        disabled={fileEntries.length === 0 || disabled}
         className="w-full"
       >
-        Upload {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}
+        Upload {fileEntries.length > 0 ? `(${fileEntries.length})` : ''}
       </Button>
     </div>
   );

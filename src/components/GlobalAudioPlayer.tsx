@@ -13,6 +13,7 @@ export interface AudioFile {
   size: number;
   createdAt: Date;
   version?: number;
+  src?: string;
 }
 
 interface GlobalAudioPlayerProps {
@@ -42,6 +43,16 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
     const customEvent = event as CustomEvent<AudioFile>;
     const file = customEvent.detail;
     setCurrentFile(file);
+    
+    // If the file has a direct src URL (for previews), use it directly
+    if (file.src) {
+      setAudioSrc(file.src);
+      setIsPlaying(true);
+      setIsExpanded(true);
+      return;
+    }
+    
+    // Otherwise use the API endpoint
     setAudioSrc(`/api/files/${file.id}`);
     setIsPlaying(true);
     setIsExpanded(true); // Auto-expand when a new file is played

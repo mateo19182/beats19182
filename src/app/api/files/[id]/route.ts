@@ -82,7 +82,7 @@ export async function GET(
       
       // Set content type header based on file type
       response.headers.set('Content-Type', file.type);
-      response.headers.set('Content-Disposition', `inline; filename="${file.name}"`);
+      response.headers.set('Content-Disposition', `attachment; filename="${file.name}"`);
       
       return response;
     } catch (error: any) {

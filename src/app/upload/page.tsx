@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { TagsInput } from '@/components/TagsInput';
+import { GlobalAudioPlayer } from '@/components/GlobalAudioPlayer';
 
 // Define a log entry type
 type LogEntry = {
@@ -24,6 +25,42 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  
+  // List of suggested tags - we'll populate this from the API
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  
+  // Fetch suggested tags from server when component mounts
+  useEffect(() => {
+    async function fetchSuggestedTags() {
+      try {
+        // Use the existing /api/tags endpoint instead of /api/tags/popular
+        const response = await fetch('/api/tags');
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Extract tag names from the response
+          // The API returns an array of objects with { id, name, fileCount }
+          const tagNames = Array.isArray(data.tags) 
+            ? data.tags.map((tag: { id: string; name: string; fileCount: number }) => tag.name) 
+            : [];
+            
+          // Merge API tags with our default ones, removing duplicates
+          setSuggestedTags(prevTags => {
+            const allTags = [...prevTags, ...tagNames];
+            return [...new Set(allTags)]; // Remove duplicates
+          });
+          
+          console.log('Loaded', tagNames.length, 'tags from API');
+        }
+      } catch (error) {
+        console.log('Error fetching suggested tags:', error);
+        // Keep the default tags on error
+      }
+    }
+    
+    // Try to fetch tags but don't block the UI
+    fetchSuggestedTags();
+  }, []);
 
   // Function to add a log entry
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
@@ -49,26 +86,95 @@ export default function UploadPage() {
     }, 100);
   }, []);
 
-  const handleUpload = async (files: File[]) => {
+  const handleUpload = async (files: File[], fileTags: Record<string, string[]>, customFilenames: Record<string, string>) => {
     setIsUploading(true);
     setUploadProgress({});
     setLogs([]); // Clear previous logs
     
     addLog(`Starting upload of ${files.length} file(s)`, 'info');
     
+    // Debug log for fileTags and customFilenames
+    console.log('File tags map:', fileTags);
+    console.log('Custom filenames map:', customFilenames);
+    
     try {
-      for (const file of files) {
-        const fileId = file.name + Date.now();
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Create a unique identifier for this file upload
+        const uniqueId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const fileId = `${file.name}-${uniqueId}`;
+        
         setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
-        addLog(`Preparing to upload: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`, 'info');
         
+        // Get the custom filename if one exists
+        const customFilename = customFilenames[i.toString()];
+        const displayName = customFilename || file.name;
+        
+        addLog(`Preparing to upload: ${displayName} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`, 'info');
+        
+        // Get tags for this file - use the index string as the key
+        const fileTagsArray = fileTags[i.toString()] || [];
+        console.log(`Tags for file ${displayName} (index ${i}):`, fileTagsArray);
+        
+        // Log any tags assigned to this file
+        if (fileTagsArray && fileTagsArray.length > 0) {
+          addLog(`File has ${fileTagsArray.length} tags: ${fileTagsArray.join(', ')}`, 'info');
+          
+          // Add any new tags to our suggested tags list for future autocomplete
+          const newTags = fileTagsArray.filter(tag => !suggestedTags.includes(tag));
+          if (newTags.length > 0) {
+            setSuggestedTags(prev => [...prev, ...newTags]);
+          }
+        }
+        
+        // Create a proper FormData instance with clean data
         const formData = new FormData();
-        formData.append('file', file);
         
-        // Add tags to the form data
-        tags.forEach(tag => {
-          formData.append('tags', tag);
-        });
+        // Append the file with a custom filename if specified
+        if (customFilename) {
+          // We need to create a new File object with the custom name
+          // Since we can't modify the name property of an existing File object
+          try {
+            // Get file extension from original name
+            const originalExt = file.name.split('.').pop() || '';
+            
+            // Create a new file object with the custom name
+            const renamedFile = new File(
+              [file], 
+              customFilename, 
+              { type: file.type, lastModified: file.lastModified }
+            );
+            
+            formData.append('file', renamedFile);
+            addLog(`Using custom filename: ${customFilename}`, 'info');
+          } catch (error) {
+            console.error('Error creating new file with custom name:', error);
+            // Fallback to original file if renaming fails
+            formData.append('file', file);
+            // Add the custom name as a field that the backend can use
+            formData.append('customFilename', customFilename);
+          }
+        } else {
+          // Use original file
+          formData.append('file', file);
+        }
+        
+        // Add per-file tags to the form data
+        const tagsToUse = fileTagsArray && fileTagsArray.length > 0 
+          ? fileTagsArray 
+          : (Array.isArray(tags) ? tags : []); // Use global tags as fallback, ensure it's an array
+        
+        if (tagsToUse && tagsToUse.length > 0) {
+          // Add each tag individually to the form data
+          tagsToUse.forEach(tag => {
+            if (tag && tag.trim()) { // Only add non-empty tags
+              formData.append('tags', tag.trim());
+            }
+          });
+          
+          addLog(`Adding tags: ${tagsToUse.join(', ')}`, 'info');
+        }
         
         // Create a custom XMLHttpRequest to track progress
         const xhr = new XMLHttpRequest();
@@ -81,7 +187,7 @@ export default function UploadPage() {
             
             // Log progress at 25%, 50%, 75%, and 100%
             if (percentComplete === 25 || percentComplete === 50 || percentComplete === 75 || percentComplete === 100) {
-              addLog(`${file.name}: ${percentComplete}% uploaded`, 'info');
+              addLog(`${displayName}: ${percentComplete}% uploaded`, 'info');
             }
           }
         });
@@ -118,19 +224,19 @@ export default function UploadPage() {
         try {
           const response = await uploadPromise;
           
-          addLog(`Successfully uploaded: ${file.name}`, 'success');
+          addLog(`Successfully uploaded: ${displayName}`, 'success');
           
           toast({
             title: 'Upload successful',
-            description: `${file.name} has been uploaded successfully.`,
+            description: `${displayName} has been uploaded successfully.`,
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-          addLog(`Failed to upload ${file.name}: ${errorMessage}`, 'error');
+          addLog(`Failed to upload ${displayName}: ${errorMessage}`, 'error');
           
           toast({
             title: 'Upload failed',
-            description: errorMessage,
+            description: `${displayName} failed to upload. ${errorMessage}`,
             variant: 'destructive',
           });
         }
@@ -138,12 +244,12 @@ export default function UploadPage() {
       
       addLog(`Upload process completed`, 'info');
     } catch (error) {
-      console.error('Upload error:', error);
-      addLog(`Upload process error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      addLog(`Unexpected error: ${errorMessage}`, 'error');
       
       toast({
         title: 'Upload failed',
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -198,26 +304,35 @@ export default function UploadPage() {
             accept="audio/*"
             maxSize={100}
             disabled={isUploading}
+            suggestedTags={suggestedTags}
           />
           
           {/* Progress Bars */}
           {Object.keys(uploadProgress).length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Upload Progress</h3>
-              {Object.entries(uploadProgress).map(([fileId, progress]) => (
-                <div key={fileId} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="truncate">{fileId.split(Date.now().toString())[0]}</span>
-                    <span>{progress}%</span>
+              {Object.entries(uploadProgress).map(([fileId, progress]) => {
+                // Extract the filename from the fileId by taking everything before the last hyphen
+                const lastHyphenIndex = fileId.lastIndexOf('-');
+                const displayName = lastHyphenIndex > 0 
+                  ? fileId.substring(0, lastHyphenIndex)
+                  : fileId;
+                
+                return (
+                  <div key={fileId} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="truncate">{displayName}</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-primary h-2.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      className="bg-primary h-2.5 rounded-full transition-all duration-300" 
-                      style={{ width: `${progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           
@@ -239,15 +354,16 @@ export default function UploadPage() {
         
         <div className="space-y-6">
           <div>
-            <h2 className="text-xl font-semibold mb-4">Add Tags</h2>
+            <h2 className="text-xl font-semibold mb-4">Default Tags</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Tags help you organize and find your audio files more easily.
+              These tags will be applied to all files that don't have specific tags.
             </p>
             
             <TagsInput
-              tags={tags}
+              tags={tags || []}
               onTagsChange={setTags}
               disabled={isUploading}
+              suggestedTags={suggestedTags || []}
             />
           </div>
           
@@ -256,14 +372,23 @@ export default function UploadPage() {
             <ul className="text-sm space-y-1 list-disc pl-4">
               <li>Maximum file size is 100MB</li>
               <li>Supported formats: MP3, WAV, OGG, FLAC, AAC, M4A</li>
-              <li>Add descriptive tags to make your files easier to find</li>
+              <li>Add tags to individual files or set default tags for all files</li>
+              <li>Preview your audio before uploading</li>
               <li>You can upload multiple files at once</li>
               <li>Track upload progress in real-time</li>
               <li>View detailed logs of the upload process</li>
+              <li>
+                <strong>Auto-tag from filename:</strong> Name your files with tags using either format:
+                <code className="px-1 py-0.5 bg-background rounded text-xs ml-1">track[tag1,tag2].mp3</code> or 
+                <code className="px-1 py-0.5 bg-background rounded text-xs ml-1">track[tag1][tag2].mp3</code>
+              </li>
             </ul>
           </div>
         </div>
       </div>
+      
+      {/* Global Audio Player */}
+      <GlobalAudioPlayer />
     </div>
   );
 } 

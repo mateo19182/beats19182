@@ -18,6 +18,34 @@ const ALLOWED_FILE_TYPES = [
   'audio/x-m4a',
 ];
 
+// Function to extract tags from filename
+// Format: supports both filename[tag1,tag2,tag3].ext and filename[tag1][tag2][tag3].ext
+function extractTagsFromFilename(filename: string): { cleanName: string, extractedTags: string[] } {
+  const tagRegex = /\[([^\]]+)\]/g;
+  let cleanName = filename;
+  const extractedTags: string[] = [];
+  
+  let match;
+  while ((match = tagRegex.exec(filename)) !== null) {
+    if (match[1]) {
+      // Split comma-separated tags and trim each tag
+      const tags = match[1].split(',').map(tag => tag.trim()).filter(Boolean);
+      extractedTags.push(...tags);
+    }
+  }
+  
+  // Remove all [tag] sections from the filename
+  cleanName = cleanName.replace(tagRegex, '');
+  
+  // Clean up extra spaces
+  cleanName = cleanName.replace(/\s+/g, ' ').trim();
+  
+  // Handle possible space before extension
+  cleanName = cleanName.replace(/ \.([a-zA-Z0-9]+)$/, '.$1');
+  
+  return { cleanName, extractedTags };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const startTime = Date.now();
@@ -52,7 +80,25 @@ export async function POST(request: NextRequest) {
     logger.debug('Parsing form data');
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const tags = formData.getAll('tags') as string[];
+    let tags = formData.getAll('tags') as string[];
+    
+    // Extract tags from filename if present
+    const { cleanName, extractedTags } = extractTagsFromFilename(file.name);
+    const origFilename = file.name;
+    
+    // Merge tags from filename with tags from form
+    if (extractedTags.length > 0) {
+      tags = [...new Set([...tags, ...extractedTags])]; // Deduplicate tags
+      logger.info(`Extracted tags from filename: ${extractedTags.join(', ')}`);
+    }
+
+    // Create a "clean" file object with the modified name
+    // Note: We don't actually need to create a new File object since we just need the clean name
+    // const fileWithCleanName = new File(
+    //   [await file.arrayBuffer()],
+    //   cleanName,
+    //   { type: file.type }
+    // );
 
     // Validate file
     if (!file) {
@@ -64,9 +110,11 @@ export async function POST(request: NextRequest) {
     }
 
     const fileInfo = {
-      name: file.name,
+      originalName: origFilename,
+      name: cleanName,
       size: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
       type: file.type,
+      extractedTags,
     };
     logger.info(`File received`, fileInfo);
 
@@ -92,7 +140,7 @@ export async function POST(request: NextRequest) {
     const existingFile = await prisma.file.findFirst({
       where: {
         userId: user.id,
-        name: file.name,
+        name: cleanName, // Use the clean name without tags
       },
       include: {
         versions: {
@@ -110,7 +158,7 @@ export async function POST(request: NextRequest) {
     if (existingFile) {
       // File exists, create new version
       const newVersion = existingFile.currentVersion + 1;
-      const objectName = generateObjectName(user.id, file.name, newVersion);
+      const objectName = generateObjectName(user.id, cleanName, newVersion);
 
       // Upload new version to MinIO
       logger.debug(`Uploading new version to MinIO: ${objectName}`);
@@ -160,7 +208,7 @@ export async function POST(request: NextRequest) {
       logger.success(`Database records updated in ${dbEndTime - dbStartTime}ms`);
     } else {
       // New file, create first version
-      const objectName = generateObjectName(user.id, file.name, 1);
+      const objectName = generateObjectName(user.id, cleanName, 1);
 
       // Upload to MinIO
       logger.debug(`Uploading new file to MinIO: ${objectName}`);
@@ -175,7 +223,7 @@ export async function POST(request: NextRequest) {
     const dbStartTime = Date.now();
       fileRecord = await prisma.file.create({
       data: {
-        name: file.name,
+        name: cleanName, // Use the clean name without tags
         path: objectName,
         type: file.type,
         size: file.size,

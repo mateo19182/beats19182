@@ -12,7 +12,6 @@
     "prisma:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "minio:init": "node scripts/check-minio.js",
-    "prestart": "npm run minio:init",
     "prestart": "npm run minio:init"
   },
   "dependencies": {
@@ -22,6 +21,7 @@
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-dropdown-menu": "^2.1.6",
     "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-scroll-area": "^1.2.3",
     "@radix-ui/react-select": "^2.1.6",
     "@radix-ui/react-slider": "^1.2.3",
     "@radix-ui/react-slot": "^1.1.2",
