@@ -12,6 +12,15 @@ import { Loader2 } from 'lucide-react';
 import { TagsInput } from '@/components/TagsInput';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface FileVersion {
+  id: string;
+  version: number;
+  path: string;
+  size: number;
+  createdAt: string;
+}
 
 interface FileCardProps {
   id: string;
@@ -20,11 +29,12 @@ interface FileCardProps {
   size: number;
   createdAt: Date;
   tags: Tag[];
+  currentVersion: number;
   onDelete?: () => void;
   allowAddToPack?: boolean;
 }
 
-export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allowAddToPack = true }: FileCardProps) {
+export function FileCard({ id, name, type, size, createdAt, tags, currentVersion, onDelete, allowAddToPack = true }: FileCardProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -34,6 +44,9 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allo
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [currentTags, setCurrentTags] = useState<string[]>(tags.map(tag => tag.name));
   const [isSavingTags, setIsSavingTags] = useState(false);
+  const [versions, setVersions] = useState<FileVersion[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number>(currentVersion);
   
   // Fetch user packs when dropdown is opened
   useEffect(() => {
@@ -69,6 +82,34 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allo
     }
   };
   
+  // Fetch file versions
+  useEffect(() => {
+    fetchFileVersions();
+  }, [id]);
+
+  const fetchFileVersions = async () => {
+    try {
+      setIsLoadingVersions(true);
+      const response = await fetch(`/api/files/${id}?metadata=true`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch file versions');
+      }
+      
+      const data = await response.json();
+      setVersions(data.file.versions);
+    } catch (error) {
+      console.error('Error fetching file versions:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load file versions',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  };
+  
   const handlePlay = () => {
     const audioFile: AudioFile = {
       id,
@@ -76,7 +117,8 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allo
       type,
       size,
       createdAt,
-    };
+      version: selectedVersion,
+    } as AudioFile;
     playAudio(audioFile);
   };
   
@@ -269,13 +311,34 @@ export function FileCard({ id, name, type, size, createdAt, tags, onDelete, allo
         </div>
         
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium truncate" title={name}>{name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium truncate" title={name}>{name}</h3>
+            <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
+              <SelectTrigger className="h-7 w-[130px]">
+                <SelectValue placeholder="Select version" />
+              </SelectTrigger>
+              <SelectContent>
+                {versions.map((version) => (
+                  <SelectItem 
+                    key={version.id} 
+                    value={version.version.toString()}
+                  >
+                    Version {version.version}
+                    {version.version === currentVersion && " (Latest)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
           <div className="flex items-center text-xs text-muted-foreground mt-1 space-x-2">
             <span>{fileExtension}</span>
             <span>•</span>
             <span>{formatFileSize(size)}</span>
             <span>•</span>
             <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
+            <span>•</span>
+            <span>Version {selectedVersion} of {versions.length}</span>
           </div>
           
           {isEditingTags ? (

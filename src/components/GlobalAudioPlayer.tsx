@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronUp, ChevronDown, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WaveformPlayer } from './WaveformPlayer';
+import { toast } from '@/components/ui/use-toast';
 
 export interface AudioFile {
   id: string;
@@ -11,6 +12,7 @@ export interface AudioFile {
   type: string;
   size: number;
   createdAt: Date;
+  version?: number;
 }
 
 interface GlobalAudioPlayerProps {
@@ -32,6 +34,9 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
   const [isExpanded, setIsExpanded] = useState(true);
   const [audioSrc, setAudioSrc] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleAudioPlay = useCallback((event: Event) => {
     const customEvent = event as CustomEvent<AudioFile>;
@@ -54,6 +59,43 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
 
   const handlePlayPause = () => {
     setIsPlaying(prev => !prev);
+  };
+
+  const loadAudio = async (file: AudioFile) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Construct URL with version if provided
+      const url = file.version
+        ? `/api/files/${file.id}?version=${file.version}`
+        : `/api/files/${file.id}`;
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load audio file');
+      }
+
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.load();
+        setCurrentFile(file);
+      }
+    } catch (error) {
+      console.error('Error loading audio:', error);
+      setError('Failed to load audio file');
+      toast({
+        title: 'Error',
+        description: 'Failed to load audio file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isVisible || !currentFile) return null;

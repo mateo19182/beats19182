@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+
+export const dynamic = 'force-dynamic';
 
 // GET /api/packs/[id] - Get a specific pack
 export async function GET(
@@ -7,6 +11,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Check authentication
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = params;
     
     // Get the pack
@@ -20,7 +30,13 @@ export async function GET(
             type: true,
             size: true,
             createdAt: true,
-            tags: true,
+            currentVersion: true,
+            tags: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -32,8 +48,11 @@ export async function GET(
     
     return NextResponse.json({ pack });
   } catch (error) {
-    console.error('Error fetching pack:', error);
-    return NextResponse.json({ error: 'Failed to fetch pack' }, { status: 500 });
+    console.error('Error in pack GET handler:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch pack' },
+      { status: 500 }
+    );
   }
 }
 

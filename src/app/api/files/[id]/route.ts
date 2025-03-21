@@ -17,13 +17,19 @@ export async function GET(
     // Check if the request is for the file metadata
     const searchParams = new URL(request.url).searchParams;
     const metadataOnly = searchParams.get('metadata') === 'true';
+    const version = searchParams.get('version');
     
     if (metadataOnly) {
-      // Get the file metadata
+      // Get the file metadata with versions
       const file = await prisma.file.findUnique({
         where: { id },
         include: {
           tags: true,
+          versions: {
+            orderBy: {
+              version: 'desc',
+            },
+          },
         },
       });
       
@@ -34,25 +40,42 @@ export async function GET(
       return NextResponse.json({ file });
     }
     
-    // Otherwise, stream the file content
-    // Get the file to determine the path in MinIO
+    // Get the file with version information if specified
     const file = await prisma.file.findUnique({
       where: { id },
       select: {
+        id: true,
+        name: true,
         path: true,
         type: true,
-        name: true,
         size: true,
+        versions: version ? {
+          where: {
+            version: parseInt(version),
+          },
+          select: {
+            path: true,
+          },
+        } : undefined,
       },
     });
     
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
+
+    // If version is specified, use that version's path
+    const filePath = version && file.versions?.[0]?.path
+      ? file.versions[0].path // Use the specified version's path
+      : file.path; // Use the current version's path
+
+    if (!filePath) {
+      return NextResponse.json({ error: 'Version not found' }, { status: 404 });
+    }
     
     try {
       // Get a readable stream from MinIO
-      const fileStream = await minioClient.getObject(BUCKET_NAME, file.path);
+      const fileStream = await minioClient.getObject(BUCKET_NAME, filePath);
       
       // Create a new response with appropriate headers
       const response = new Response(Readable.toWeb(fileStream) as ReadableStream);

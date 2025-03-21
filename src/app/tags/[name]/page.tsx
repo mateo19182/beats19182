@@ -16,6 +16,7 @@ interface File {
   type: string;
   size: number;
   createdAt: string;
+  currentVersion: number;
   tags: Array<{
     id: string;
     name: string;
@@ -148,6 +149,7 @@ function TagPageContent() {
               size={file.size}
               createdAt={new Date(file.createdAt)}
               tags={file.tags}
+              currentVersion={file.currentVersion}
               onDelete={() => handleFileDeleted(file.id)}
             />
           ))}

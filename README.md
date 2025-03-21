@@ -11,8 +11,6 @@ Self-hosted platform for managing and sharing audio files with a structured tagg
 ![Screenshot 2](./public/edit-pack.png)
 ![Screenshot 3](./public/files.png)
 
-
-
 ## Features
 
 ### File Management
@@ -24,6 +22,10 @@ Self-hosted platform for managing and sharing audio files with a structured tagg
 - Users can create and assign multiple tags to files.
 - Tag-based filtering and search enable quick retrieval of relevant files.
 - Smart suggestions for frequently used tags improve organization.
+
+### Versioning
+- Automatic version tracking for file updates
+- Access to previous versions of files
 
 ### Pack Creation & Sharing
 - Users can group multiple files into "packs."
@@ -41,10 +43,18 @@ Change environment variables in docker-compose.yml
 
 run docker compose up
 
-## Future Enhancements
+## TODO
+- bugs
+ - on create new pack, weird color
+ - on change tag, need to refresh page
+ . need to refresh on upload
+- public facing page with my music
+- actually good UI
 - User activity logging and version control.
 - Background jobs for handling large file processing.
 - API for external integrations.
+- mobile
 - Dark mode
+- visualizer
 
 

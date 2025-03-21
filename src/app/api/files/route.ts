@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { prisma } from '@/lib/db';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -9,85 +9,59 @@ export async function GET(request: NextRequest) {
   try {
     logger.info('Files fetch request received');
 
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const search = searchParams.get('search') || '';
-    const tagFilter = searchParams.get('tag') || '';
-    const sortBy = searchParams.get('sortBy') || 'createdAt';
-    const sortOrder = searchParams.get('sortOrder') || 'desc';
-    
-    logger.debug(`Search params: search=${search}, tag=${tagFilter}, sortBy=${sortBy}, sortOrder=${sortOrder}`);
-
     // Check authentication
-    logger.debug('Checking authentication');
     const session = await getServerSession();
-    if (!session || !session.user?.email) {
+    if (!session?.user?.email) {
       logger.error('Unauthorized access attempt');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the user from the database
-    logger.debug(`Looking up user: ${session.user.email}`);
+    // Get the user
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
     if (!user) {
       logger.error(`User not found: ${session.user.email}`);
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Build the where clause for filtering
-    const whereClause: any = {
-      userId: user.id,
-    };
+    // Get search parameters
+    const searchParams = new URL(request.url).searchParams;
+    const searchQuery = searchParams.get('search') || '';
+    const tag = searchParams.get('tag');
+    const sortBy = searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
 
-    // Add name search if provided
-    if (search) {
-      whereClause.name = {
-        contains: search,
-        mode: 'insensitive', // Case-insensitive search
-      };
-    }
+    logger.debug(`Search params: search=${searchQuery}, tag=${tag}, sortBy=${sortBy}, sortOrder=${sortOrder}`);
 
-    // Add tag filter if provided
-    if (tagFilter) {
-      whereClause.tags = {
-        some: {
-          name: tagFilter,
-        },
-      };
-    }
-
-    // Validate sort parameters
-    const validSortFields = ['name', 'createdAt', 'size', 'type'];
-    const validSortOrders = ['asc', 'desc'];
-    
-    const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
-    const finalSortOrder = validSortOrders.includes(sortOrder as any) ? sortOrder : 'desc';
-
-    // Build the orderBy object
-    const orderBy: any = {
-      [finalSortBy]: finalSortOrder,
-    };
-
-    // Fetch files for the user with filters and sorting
-    logger.debug(`Fetching files for user: ${user.id} with filters and sorting`);
+    // Get files with search, filter, and sort parameters
     const files = await prisma.file.findMany({
-      where: whereClause,
+      where: {
+        userId: user.id,
+        ...(searchQuery && {
+          name: {
+            contains: searchQuery,
+            mode: 'insensitive',
+          },
+        }),
+        ...(tag && {
+          tags: {
+            some: {
+              name: tag,
+            },
+          },
+        }),
+      },
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
       include: {
         tags: true,
       },
-      orderBy,
     });
 
-    // Get all unique tags for the user (for the filter dropdown)
+    // Get all unique tags
     const allTags = await prisma.tag.findMany({
       where: {
         files: {
@@ -96,17 +70,14 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      distinct: ['name'],
-      select: {
-        id: true,
-        name: true,
+      orderBy: {
+        name: 'asc',
       },
     });
 
     logger.success(`Successfully fetched ${files.length} files`);
 
     return NextResponse.json({
-      success: true,
       files,
       tags: allTags,
     });

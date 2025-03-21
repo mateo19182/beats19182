@@ -23,18 +23,35 @@ model User {
 }
 
 model File {
-  id            String    @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String
   path          String
   type          String
   size          Int
   userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags          Tag[]
   packs         Pack[]
-  createdAt     DateTime  @default(now())
+  versions      FileVersion[]
+  currentVersion Int         @default(1)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@index([userId])
+  @@unique([userId, name])
+}
+
+model FileVersion {
+  id            String    @id @default(cuid())
+  version       Int
+  path          String
+  size          Int
+  fileId        String
+  file          File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+
+  @@unique([fileId, version])
+  @@index([fileId])
 }
 
 model Tag {

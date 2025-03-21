@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "minio:init": "node scripts/check-minio.js",
+    "prestart": "npm run minio:init",
     "prestart": "npm run minio:init"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@uploadthing/react": "^7.3.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
+    "canvas": "^3.1.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -37,6 +39,7 @@
     "nanoid": "^5.1.5",
     "next": "14.1.0",
     "next-auth": "^4.24.11",
+    "png-to-ico": "^2.1.8",
     "react": "^18",
     "react-dom": "^18",
     "react-h5-audio-player": "^3.10.0-rc.1",

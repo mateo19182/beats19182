@@ -88,16 +88,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a unique object name for MinIO
-    const objectName = generateObjectName(user.id, file.name);
-    logger.debug(`Generated unique object name: ${objectName}`);
+    // Check if a file with the same name exists
+    const existingFile = await prisma.file.findFirst({
+      where: {
+        userId: user.id,
+        name: file.name,
+      },
+      include: {
+        versions: {
+          orderBy: {
+            version: 'desc',
+          },
+          take: 1,
+        },
+      },
+    });
 
-    // Convert the file to a Buffer
-    logger.debug('Converting file to buffer');
+    let fileRecord;
     const buffer = Buffer.from(await file.arrayBuffer());
     
-    // Upload the file to MinIO
-    logger.debug(`Uploading file to MinIO: ${objectName}`);
+    if (existingFile) {
+      // File exists, create new version
+      const newVersion = existingFile.currentVersion + 1;
+      const objectName = generateObjectName(user.id, file.name, newVersion);
+
+      // Upload new version to MinIO
+      logger.debug(`Uploading new version to MinIO: ${objectName}`);
+      const uploadStartTime = Date.now();
+      await minioClient.putObject(BUCKET_NAME, objectName, buffer, buffer.length, {
+        'Content-Type': file.type,
+      });
+      const uploadEndTime = Date.now();
+      logger.success(`File version uploaded to MinIO successfully in ${uploadEndTime - uploadStartTime}ms`);
+
+      // Create version record and update file
+      const dbStartTime = Date.now();
+      const [newVersionRecord, updatedFile] = await prisma.$transaction([
+        prisma.fileVersion.create({
+          data: {
+            version: newVersion,
+            path: objectName,
+            size: file.size,
+            fileId: existingFile.id,
+          },
+        }),
+        prisma.file.update({
+          where: { id: existingFile.id },
+          data: {
+            currentVersion: newVersion,
+            path: objectName,
+            size: file.size,
+            tags: {
+              connectOrCreate: tags.map(tag => ({
+                where: { name: tag },
+                create: { name: tag },
+              })),
+            },
+          },
+          include: {
+            versions: {
+              orderBy: {
+                version: 'desc',
+              },
+            },
+          },
+        }),
+      ]);
+
+      fileRecord = updatedFile;
+      const dbEndTime = Date.now();
+      logger.success(`Database records updated in ${dbEndTime - dbStartTime}ms`);
+    } else {
+      // New file, create first version
+      const objectName = generateObjectName(user.id, file.name, 1);
+
+      // Upload to MinIO
+      logger.debug(`Uploading new file to MinIO: ${objectName}`);
     const uploadStartTime = Date.now();
     await minioClient.putObject(BUCKET_NAME, objectName, buffer, buffer.length, {
       'Content-Type': file.type,
@@ -105,16 +171,23 @@ export async function POST(request: NextRequest) {
     const uploadEndTime = Date.now();
     logger.success(`File uploaded to MinIO successfully in ${uploadEndTime - uploadStartTime}ms`);
 
-    // Create file record in the database
-    logger.debug('Creating database record', { tags });
+      // Create file and version records
     const dbStartTime = Date.now();
-    const fileRecord = await prisma.file.create({
+      fileRecord = await prisma.file.create({
       data: {
         name: file.name,
         path: objectName,
         type: file.type,
         size: file.size,
         userId: user.id,
+          currentVersion: 1,
+          versions: {
+            create: {
+              version: 1,
+              path: objectName,
+              size: file.size,
+            },
+          },
         tags: {
           connectOrCreate: tags.map(tag => ({
             where: { name: tag },
@@ -122,14 +195,23 @@ export async function POST(request: NextRequest) {
           })),
         },
       },
+        include: {
+          versions: {
+            orderBy: {
+              version: 'desc',
+            },
+          },
+        },
     });
     const dbEndTime = Date.now();
-    logger.success(`Database record created in ${dbEndTime - dbStartTime}ms`);
+      logger.success(`Database records created in ${dbEndTime - dbStartTime}ms`);
+    }
 
     const endTime = Date.now();
     logger.success(`Upload completed in ${endTime - startTime}ms`, {
       fileId: fileRecord.id,
       fileName: fileRecord.name,
+      version: fileRecord.currentVersion,
       processingTime: endTime - startTime
     });
 
@@ -140,6 +222,8 @@ export async function POST(request: NextRequest) {
         name: fileRecord.name,
         type: fileRecord.type,
         size: fileRecord.size,
+        currentVersion: fileRecord.currentVersion,
+        versions: fileRecord.versions,
         processingTime: endTime - startTime
       },
     });
