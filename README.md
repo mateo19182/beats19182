@@ -39,20 +39,18 @@ Self-hosted platform for managing and sharing audio files with a structured tagg
 
 ## Setup and Configuration
 
-Change environment variables in docker-compose.yml
+create a .env file and set the variables in docker-compose.yml
 
 run docker compose up
 
 ## TODO
-- bugs
- - on change tag, need to refresh page
- - need to refresh on upload
+
 - public facing page with my music
 - actually good UI
+- images for covers
 - bpm and key ? automatic recgnition
 - actual sort by date.
 - User activity logging
-- Background jobs for handling large file processing and imports
 - API for external integrations
 - mobile
 - Dark mode

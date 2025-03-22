@@ -362,8 +362,8 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
             <h3 className="font-medium truncate text-sm" title={name}>{name}</h3>
             <div className="ml-2">
               <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
-                <SelectTrigger className="h-6 w-[60px] text-xs">
-                  <SelectValue placeholder="v." />
+                <SelectTrigger className="h-6 w-[40px] text-xs px-2">
+                  <SelectValue placeholder={selectedVersion.toString()} />
                 </SelectTrigger>
                 <SelectContent>
                   {versions.map((version) => (
@@ -387,7 +387,7 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
             <span>•</span>
             <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
             <span>•</span>
-            <span>v{selectedVersion}/{versions.length}</span>
+            <span>{selectedVersion}/{versions.length}</span>
           </div>
           
           {isEditingTags ? (

@@ -16,8 +16,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -46,17 +46,18 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/beats19182
-      - NEXTAUTH_URL=http://localhost:3001
-      - NEXTAUTH_SECRET=your-secret-key-here
-      - ADMIN_EMAIL=example@example.com
-      - ADMIN_PASSWORD=example
-      - MINIO_ENDPOINT=minio
-      - MINIO_PORT=9000
-      - MINIO_USE_SSL=false
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=beats-audio
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_USE_SSL=${MINIO_USE_SSL}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - NODE_ENV=${NODE_ENV}
     volumes:
       - ./uploads:/app/uploads
     depends_on:

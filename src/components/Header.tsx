@@ -20,6 +20,11 @@ export function Header() {
     setMobileMenuOpen(false);
   };
 
+  // Handle logo click - go to files if logged in, otherwise go to homepage
+  const handleLogoClick = () => {
+    navigate(session ? '/files' : '/');
+  };
+
   // Navigation items for both desktop and mobile
   const navItems = [
     { label: "Files", path: "/files", icon: null },
@@ -35,7 +40,7 @@ export function Header() {
         <div className="flex items-center space-x-6">
           {/* Logo */}
           <button 
-            onClick={() => navigate('/')}
+            onClick={handleLogoClick}
             className="text-xl font-bold cursor-pointer bg-transparent border-none"
           >
             Beats19182
