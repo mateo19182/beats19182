@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { FileCard } from '@/components/FileCard';
 import { GlobalAudioPlayer } from '@/components/GlobalAudioPlayer';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Music, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Loader2, Music, Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,6 +42,13 @@ interface Tag {
   name: string;
 }
 
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+}
+
 // Create a component that uses searchParams
 function FilesPageContent() {
   const { toast } = useToast();
@@ -50,6 +57,14 @@ function FilesPageContent() {
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  });
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +79,15 @@ function FilesPageContent() {
     if (tagParam) {
       setSelectedTag(tagParam);
     }
+    
+    // Check for page parameter in URL
+    const pageParam = searchParams.get('page');
+    if (pageParam && !isNaN(Number(pageParam))) {
+      setPagination(prev => ({
+        ...prev,
+        currentPage: Number(pageParam)
+      }));
+    }
   }, [searchParams]);
 
   // Debounce search query
@@ -75,7 +99,15 @@ function FilesPageContent() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch files with search, filter, and sort parameters
+  // Reset to page 1 when search or filters change
+  useEffect(() => {
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1
+    }));
+  }, [debouncedSearchQuery, selectedTag, sortBy, sortOrder]);
+
+  // Fetch files with search, filter, sort, and pagination parameters
   const fetchFiles = async () => {
     try {
       setIsLoading(true);
@@ -87,6 +119,8 @@ function FilesPageContent() {
       if (selectedTag && selectedTag !== 'all') params.append('tag', selectedTag);
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
+      params.append('page', pagination.currentPage.toString());
+      params.append('limit', pagination.itemsPerPage.toString());
       
       const response = await fetch(`/api/files?${params.toString()}`);
       
@@ -98,6 +132,14 @@ function FilesPageContent() {
       const data = await response.json();
       setFiles(data.files);
       setAllTags(data.tags);
+      
+      // Update pagination info
+      setPagination({
+        currentPage: data.pagination.currentPage,
+        totalPages: data.pagination.totalPages,
+        totalItems: data.pagination.totalItems,
+        itemsPerPage: data.pagination.itemsPerPage
+      });
     } catch (error) {
       console.error('Error fetching files:', error);
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
@@ -112,14 +154,17 @@ function FilesPageContent() {
     }
   };
 
-  // Fetch files when search, filter, or sort parameters change
+  // Fetch files when search, filter, sort, or pagination parameters change
   useEffect(() => {
     fetchFiles();
-  }, [debouncedSearchQuery, selectedTag, sortBy, sortOrder]);
+  }, [debouncedSearchQuery, selectedTag, sortBy, sortOrder, pagination.currentPage, pagination.itemsPerPage]);
 
   const handleFileDeleted = (deletedFileId: string) => {
     // Remove the deleted file from the state
     setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId));
+    
+    // Refetch to ensure pagination is correct
+    fetchFiles();
   };
 
   const clearFilters = () => {
@@ -138,6 +183,30 @@ function FilesPageContent() {
     };
     
     return `${fieldLabels[field] || field} (${order === 'asc' ? 'A-Z' : 'Z-A'})`;
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > pagination.totalPages) return;
+    
+    setPagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+    
+    // Update URL with new page parameter without full page reload
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', newPage.toString());
+    window.history.pushState({}, '', url.toString());
+  };
+  
+  const handleItemsPerPageChange = (value: string) => {
+    const newItemsPerPage = parseInt(value);
+    
+    setPagination(prev => ({
+      ...prev,
+      itemsPerPage: newItemsPerPage,
+      currentPage: 1 // Reset to first page when changing items per page
+    }));
   };
 
   const hasActiveFilters = debouncedSearchQuery || selectedTag !== 'all' || sortBy !== 'createdAt' || sortOrder !== 'desc';
@@ -309,21 +378,145 @@ function FilesPageContent() {
           )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
-          {files.map((file) => (
-            <FileCard
-              key={file.id}
-              id={file.id}
-              name={file.name}
-              type={file.type}
-              size={file.size}
-              createdAt={new Date(file.createdAt)}
-              tags={file.tags}
-              currentVersion={file.currentVersion}
-              onDelete={() => handleFileDeleted(file.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
+            {files.map((file) => (
+              <FileCard
+                key={file.id}
+                id={file.id}
+                name={file.name}
+                type={file.type}
+                size={file.size}
+                createdAt={new Date(file.createdAt)}
+                tags={file.tags}
+                currentVersion={file.currentVersion}
+                onDelete={() => handleFileDeleted(file.id)}
+              />
+            ))}
+          </div>
+          
+          {/* Pagination controls */}
+          {pagination.totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {Math.min((pagination.currentPage - 1) * pagination.itemsPerPage + 1, pagination.totalItems)} to {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of {pagination.totalItems} files
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Select
+                  value={pagination.itemsPerPage.toString()}
+                  onValueChange={handleItemsPerPageChange}
+                >
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Items per page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 per page</SelectItem>
+                    <SelectItem value="10">10 per page</SelectItem>
+                    <SelectItem value="20">20 per page</SelectItem>
+                    <SelectItem value="50">50 per page</SelectItem>
+                  </SelectContent>
+                </Select>
+              
+                <div className="flex items-center">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                    disabled={pagination.currentPage === 1}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="flex items-center mx-2">
+                    {/* Simplified page indicator for mobile */}
+                    <span className="text-sm mx-2 sm:hidden">
+                      {pagination.currentPage} / {pagination.totalPages}
+                    </span>
+                    
+                    {/* Page number buttons for desktop */}
+                    <div className="hidden sm:flex items-center">
+                      {/* Always show first page */}
+                      {pagination.totalPages > 3 && pagination.currentPage > 2 && (
+                        <>
+                          <Button
+                            variant={pagination.currentPage === 1 ? "default" : "outline"}
+                            size="sm"
+                            className="h-8 w-8 p-0 mx-1"
+                            onClick={() => handlePageChange(1)}
+                          >
+                            1
+                          </Button>
+                          {pagination.currentPage > 3 && <span className="mx-1">...</span>}
+                        </>
+                      )}
+                      
+                      {/* Show current page and surrounding pages */}
+                      {Array.from({ length: Math.min(3, pagination.totalPages) }, (_, i) => {
+                        let pageNum;
+                        
+                        if (pagination.totalPages <= 3) {
+                          // If 3 or fewer total pages, show all of them
+                          pageNum = i + 1;
+                        } else if (pagination.currentPage === 1) {
+                          // If on first page, show pages 1-3
+                          pageNum = i + 1;
+                        } else if (pagination.currentPage === pagination.totalPages) {
+                          // If on last page, show last 3 pages
+                          pageNum = pagination.totalPages - 2 + i;
+                        } else {
+                          // Otherwise, show current page and adjacent pages
+                          pageNum = pagination.currentPage - 1 + i;
+                        }
+                        
+                        // Skip if page number is out of range
+                        if (pageNum < 1 || pageNum > pagination.totalPages) return null;
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={pagination.currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            className="h-8 w-8 p-0 mx-1"
+                            onClick={() => handlePageChange(pageNum)}
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                      
+                      {/* Always show last page */}
+                      {pagination.totalPages > 3 && pagination.currentPage < pagination.totalPages - 1 && (
+                        <>
+                          {pagination.currentPage < pagination.totalPages - 2 && <span className="mx-1">...</span>}
+                          <Button
+                            variant={pagination.currentPage === pagination.totalPages ? "default" : "outline"}
+                            size="sm"
+                            className="h-8 w-8 p-0 mx-1"
+                            onClick={() => handlePageChange(pagination.totalPages)}
+                          >
+                            {pagination.totalPages}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    disabled={pagination.currentPage === pagination.totalPages}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
       
       {/* Global Audio Player */}

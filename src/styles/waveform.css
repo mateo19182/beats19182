@@ -34,8 +34,18 @@ input[type=range]::-moz-range-thumb {
 .wavesurfer-container {
   border-radius: 8px;
   overflow: hidden;
-  background-color: rgba(0, 0, 0, 0.03);
+  background-color: var(--card);
   border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Ensure the wave wrapper has a background */
+.wavesurfer-container > wave {
+  background-color: var(--card);
+}
+
+/* Make sure the wave container has solid background */
+.wavesurfer-container canvas {
+  background-color: var(--card) !important;
 }
 
 /* Enhance hover effect on timeline */

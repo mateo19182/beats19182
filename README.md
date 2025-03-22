@@ -45,13 +45,12 @@ run docker compose up
 
 ## TODO
 - bugs
- - on create new pack, weird color
  - on change tag, need to refresh page
  - need to refresh on upload
- - import scripts from offtop
 - public facing page with my music
 - actually good UI
 - bpm and key ? automatic recgnition
+- actual sort by date.
 - User activity logging
 - Background jobs for handling large file processing and imports
 - API for external integrations

@@ -152,6 +152,7 @@ export function WaveformPlayer({
         <div 
           ref={containerRef} 
           className="w-full cursor-pointer rounded-md overflow-hidden wavesurfer-container"
+          style={{ backgroundColor: 'var(--card)' }}
         />
       </div>
       

@@ -47,6 +47,8 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<number>(currentVersion);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
   
   // Fetch user packs when dropdown is opened
   useEffect(() => {
@@ -309,6 +311,45 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
     router.push(`/tags/${encodeURIComponent(tagName)}`);
   };
   
+  // Fetch all available tags for suggestion when editing mode is activated
+  useEffect(() => {
+    if (isEditingTags) {
+      fetchAllTags();
+    }
+  }, [isEditingTags]);
+  
+  // Fetch all tags from the API
+  const fetchAllTags = async () => {
+    try {
+      setIsLoadingTags(true);
+      
+      const response = await fetch('/api/tags');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch tags');
+      }
+      
+      const data = await response.json();
+      // Extract tag names from the response and filter out tags that are already applied
+      const existingTagNames = currentTags;
+      const availableTags = data.tags
+        .map((tag: Tag) => tag.name)
+        .filter((name: string) => !existingTagNames.includes(name));
+      
+      setSuggestedTags(availableTags);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load tags for suggestions',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingTags(false);
+    }
+  };
+  
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
       <div className="p-4 flex items-center space-x-4">
@@ -317,24 +358,26 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
         </div>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium truncate" title={name}>{name}</h3>
-            <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
-              <SelectTrigger className="h-7 w-[130px]">
-                <SelectValue placeholder="Select version" />
-              </SelectTrigger>
-              <SelectContent>
-                {versions.map((version) => (
-                  <SelectItem 
-                    key={version.id} 
-                    value={version.version.toString()}
-                  >
-                    Version {version.version}
-                    {version.version === currentVersion && " (Latest)"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium truncate text-sm" title={name}>{name}</h3>
+            <div className="ml-2">
+              <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
+                <SelectTrigger className="h-6 w-[60px] text-xs">
+                  <SelectValue placeholder="v." />
+                </SelectTrigger>
+                <SelectContent>
+                  {versions.map((version) => (
+                    <SelectItem 
+                      key={version.id} 
+                      value={version.version.toString()}
+                      className="text-xs"
+                    >
+                      {version.version}{version.version === currentVersion && " ★"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
           <div className="flex items-center text-xs text-muted-foreground mt-1 space-x-2">
@@ -344,7 +387,7 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
             <span>•</span>
             <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
             <span>•</span>
-            <span>Version {selectedVersion} of {versions.length}</span>
+            <span>v{selectedVersion}/{versions.length}</span>
           </div>
           
           {isEditingTags ? (
@@ -355,6 +398,7 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
                 disabled={isSavingTags}
                 showLabel={false}
                 placeholder="Add tags..."
+                suggestedTags={suggestedTags}
               />
               <div className="flex gap-2 mt-2">
                 <Button 

@@ -49,11 +49,11 @@
 
 @layer base {
   :root {
-    --background: oklch(1 0 0);
+    --background: #ffffff;
     --foreground: oklch(0.129 0.042 264.695);
-    --card: oklch(1 0 0);
+    --card: #ffffff;
     --card-foreground: oklch(0.129 0.042 264.695);
-    --popover: oklch(1 0 0);
+    --popover: #ffffff;
     --popover-foreground: oklch(0.129 0.042 264.695);
     --primary: oklch(0.208 0.042 265.755);
     --primary-foreground: oklch(0.984 0.003 247.858);
@@ -72,11 +72,11 @@
   }
 
   .dark {
-    --background: oklch(0.129 0.042 264.695);
+    --background: #1a1a2e;
     --foreground: oklch(0.984 0.003 247.858);
-    --card: oklch(0.129 0.042 264.695);
+    --card: #1a1a2e;
     --card-foreground: oklch(0.984 0.003 247.858);
-    --popover: oklch(0.129 0.042 264.695);
+    --popover: #1a1a2e;
     --popover-foreground: oklch(0.984 0.003 247.858);
     --primary: oklch(0.984 0.003 247.858);
     --primary-foreground: oklch(0.208 0.042 265.755);
@@ -101,4 +101,29 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Add additional explicit styling for dropdown components */
+.bg-background {
+  background-color: var(--background) !important;
+}
+
+.bg-card {
+  background-color: var(--card) !important;
+}
+
+.bg-popover {
+  background-color: var(--popover) !important;
+}
+
+/* Ensure dropdown and popover components have solid backgrounds */
+[data-radix-popper-content-wrapper] > * {
+  background-color: var(--popover) !important;
+}
+
+/* Fix for waveform and audio player backgrounds */
+.wavesurfer-container,
+.wavesurfer-container canvas,
+.audio-player-custom .rhap_container {
+  background-color: var(--card) !important;
 }

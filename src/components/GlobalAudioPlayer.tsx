@@ -114,14 +114,16 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
   return (
     <div 
       className={cn(
-        "fixed bottom-0 left-0 right-0 bg-card border-t shadow-lg transition-all duration-300 z-50",
+        "fixed bottom-0 left-0 right-0 bg-popover border-t shadow-lg transition-all duration-300 z-50",
         isExpanded ? "h-auto pb-4" : "h-14",
         "md:pb-2"
       )}
+      style={{ backgroundColor: 'var(--popover)' }}
     >
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="absolute -top-8 right-4 bg-card p-1 rounded-t-md border border-b-0"
+        className="absolute -top-8 right-4 bg-popover p-1 rounded-t-md border border-b-0"
+        style={{ backgroundColor: 'var(--popover)' }}
       >
         {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
       </button>

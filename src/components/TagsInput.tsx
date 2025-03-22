@@ -159,7 +159,7 @@ export function TagsInput({
     <div className="space-y-3">
       {showLabel && <Label>Tags</Label>}
       
-      <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-background">
+      <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-card">
         {safeTags.map((tag, index) => (
           <Badge 
             key={index}
@@ -218,7 +218,7 @@ export function TagsInput({
           {showSuggestions && suggestions.length > 0 && (
             <div 
               ref={suggestionsRef}
-              className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-md bg-background border shadow-lg"
+              className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-md bg-popover border shadow-lg"
             >
               <ul className="py-1 text-sm">
                 {suggestions.map((suggestion, index) => (
