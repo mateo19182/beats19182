@@ -51,6 +51,7 @@ run docker compose up
  - import scripts from offtop
 - public facing page with my music
 - actually good UI
+- bpm and key ? automatic recgnition
 - User activity logging
 - Background jobs for handling large file processing and imports
 - API for external integrations
