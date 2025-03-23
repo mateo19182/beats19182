@@ -18,10 +18,10 @@ run docker compose up
 
 ## TODO
 
+- improve speed of streaming
 - change name from files page
 - global player should be closed not minimized, also fix
 - actual sort by date and get from date from tags
-- get rid of all the random text 
 - complete uploads with gente: cxx, yl, ... and new beats
 - public facing page with my music
 - actually good UI

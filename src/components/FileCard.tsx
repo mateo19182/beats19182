@@ -13,6 +13,7 @@ import { TagsInput } from '@/components/TagsInput';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface FileVersion {
   id: string;
@@ -49,6 +50,9 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
   const [selectedVersion, setSelectedVersion] = useState<number>(currentVersion);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [currentName, setCurrentName] = useState(name);
+  const [isSavingName, setIsSavingName] = useState(false);
   
   // Fetch user packs when dropdown is opened
   useEffect(() => {
@@ -350,202 +354,365 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
     }
   };
   
+  // Handle saving file name
+  const handleSaveName = async () => {
+    if (!currentName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'File name cannot be empty',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      setIsSavingName(true);
+      
+      const response = await fetch(`/api/files/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: currentName,
+          tags: currentTags,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update file name');
+      }
+      
+      // Update the file in parent component
+      if (onDelete) {
+        // If onDelete is provided, we need to refresh the parent component
+        onDelete();
+      }
+      
+      setIsEditingName(false);
+      
+      toast({
+        title: 'File renamed',
+        description: 'The file has been renamed successfully.',
+      });
+    } catch (error) {
+      console.error('Error updating file name:', error);
+      
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to rename file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+  
+  // Cancel name editing
+  const handleCancelEditName = () => {
+    setCurrentName(name);
+    setIsEditingName(false);
+  };
+  
+  // Start editing name
+  const handleStartEditName = () => {
+    // Don't allow editing name while editing tags
+    if (isEditingTags) return;
+    
+    setCurrentName(name);
+    setIsEditingName(true);
+  };
+  
+  // Handle key press in name input
+  const handleNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      handleCancelEditName();
+    }
+  };
+  
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
-      <div className="p-4 flex items-center space-x-4">
-        <div className="bg-primary/10 rounded-md p-3 flex-shrink-0">
-          <Music className="h-8 w-8 text-primary" />
-        </div>
+      <div className={`p-4 flex ${isEditingName ? 'flex-col' : 'items-center space-x-4'}`}>
+        {!isEditingName && (
+          <div className="hidden sm:block bg-primary/10 rounded-md p-3 flex-shrink-0">
+            <Music className="h-8 w-8 text-primary" />
+          </div>
+        )}
         
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium truncate text-sm" title={name}>{name}</h3>
-            <div className="ml-2">
-              <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
-                <SelectTrigger className="h-6 w-[40px] text-xs px-2">
-                  <SelectValue placeholder={selectedVersion.toString()} />
-                </SelectTrigger>
-                <SelectContent>
-                  {versions.map((version) => (
-                    <SelectItem 
-                      key={version.id} 
-                      value={version.version.toString()}
-                      className="text-xs"
-                    >
-                      {version.version}{version.version === currentVersion && " ★"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          
-          <div className="flex items-center text-xs text-muted-foreground mt-1 space-x-2">
-            <span>{fileExtension}</span>
-            <span>•</span>
-            <span>{formatFileSize(size)}</span>
-            <span>•</span>
-            <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
-            <span>•</span>
-            <span>{selectedVersion}/{versions.length}</span>
-          </div>
-          
-          {isEditingTags ? (
-            <div className="mt-3">
-              <TagsInput 
-                tags={currentTags}
-                onTagsChange={setCurrentTags}
-                disabled={isSavingTags}
-                showLabel={false}
-                placeholder="Add tags..."
-                suggestedTags={suggestedTags}
+        <div className={`${isEditingName ? 'w-full' : 'flex-1 min-w-0'}`}>
+          {isEditingName ? (
+            <div className="w-full mb-3">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-sm">Edit File Name</h3>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={handleCancelEditName}
+                  disabled={isSavingName}
+                  className="h-7 w-7 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <Input
+                type="text"
+                value={currentName}
+                onChange={(e) => setCurrentName(e.target.value)}
+                onKeyDown={handleNameKeyPress}
+                autoFocus
+                className="h-10 text-sm mb-3"
+                placeholder="Enter file name"
+                disabled={isSavingName}
               />
-              <div className="flex gap-2 mt-2">
+              <div className="flex justify-end">
                 <Button 
                   size="sm" 
                   variant="default" 
-                  onClick={handleSaveTags}
-                  disabled={isSavingTags}
-                  className="h-7 text-xs"
+                  onClick={handleSaveName}
+                  disabled={isSavingName}
+                  className="h-9 px-4"
                 >
-                  {isSavingTags ? (
+                  {isSavingName ? (
                     <>
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Saving
                     </>
                   ) : (
                     <>
-                      <Check className="h-3 w-3 mr-1" />
-                      Save
+                      <Check className="h-4 w-4 mr-2" />
+                      Save Changes
                     </>
                   )}
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={handleCancelEditTags}
-                  disabled={isSavingTags}
-                  className="h-7 text-xs"
-                >
-                  <X className="h-3 w-3 mr-1" />
-                  Cancel
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              {tags.length > 0 ? (
-                <>
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                      <Badge 
-                        key={tag.id} 
-                        variant="secondary"
-                        className="flex items-center gap-1 px-2 py-1 text-xs cursor-pointer hover:bg-secondary/80"
-                        onClick={(e) => handleTagClick(e, tag.name)}
-                      >
-                        <TagIcon className="h-3 w-3 opacity-70" />
-                        {tag.name}
-                      </Badge>
-                    ))}
-                  </div>
-                  <Button 
-                    onClick={() => setIsEditingTags(true)} 
-                    size="sm"
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center max-w-[90%] sm:max-w-[85%]">
+                  <h3 className="font-medium truncate text-sm" title={name}>{name}</h3>
+                  <Button
                     variant="ghost"
-                    className="h-6 px-2 text-xs"
+                    size="sm"
+                    onClick={handleStartEditName}
+                    className="ml-1 h-6 w-6 p-0 flex-shrink-0"
+                    title="Edit Name"
                   >
-                    <Edit className="h-3 w-3 mr-1" />
-                    Edit
+                    <Edit className="h-3 w-3" />
                   </Button>
-                </>
+                </div>
+                <div className="hidden sm:block ml-2 flex-shrink-0">
+                  <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
+                    <SelectTrigger className="h-6 w-[40px] text-xs px-2">
+                      <SelectValue placeholder={selectedVersion.toString()} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {versions.map((version) => (
+                        <SelectItem 
+                          key={version.id} 
+                          value={version.version.toString()}
+                          className="text-xs"
+                        >
+                          {version.version}{version.version === currentVersion && " ★"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="hidden sm:flex items-center text-xs text-muted-foreground mt-1 space-x-2">
+                <span>{fileExtension}</span>
+                <span>•</span>
+                <span>{formatFileSize(size)}</span>
+                <span>•</span>
+                <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
+                <span>•</span>
+                <span>{selectedVersion}/{versions.length}</span>
+              </div>
+              
+              {/* Mobile version - simplified metadata */}
+              <div className="flex sm:hidden items-center text-xs text-muted-foreground mt-1 space-x-2">
+                <span>{fileExtension}</span>
+                <span>•</span>
+                <span>{formatFileSize(size)}</span>
+              </div>
+              
+              {isEditingTags ? (
+                <div className="mt-3">
+                  <TagsInput 
+                    tags={currentTags}
+                    onTagsChange={setCurrentTags}
+                    disabled={isSavingTags}
+                    showLabel={false}
+                    placeholder="Add tags..."
+                    suggestedTags={suggestedTags}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="default" 
+                      onClick={handleSaveTags}
+                      disabled={isSavingTags}
+                      className="h-7 text-xs"
+                    >
+                      {isSavingTags ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Saving
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3 w-3 mr-1" />
+                          Save
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={handleCancelEditTags}
+                      disabled={isSavingTags}
+                      className="h-7 text-xs"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               ) : (
-                <Button 
-                  onClick={() => setIsEditingTags(true)} 
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Tags
-                </Button>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {tags.length > 0 ? (
+                    <>
+                      <div className="flex flex-wrap gap-1 max-h-[28px] overflow-hidden">
+                        {tags.slice(0, 3).map((tag) => (
+                          <Badge 
+                            key={tag.id} 
+                            variant="secondary"
+                            className="flex items-center gap-1 px-2 py-1 text-xs cursor-pointer hover:bg-secondary/80"
+                            onClick={(e) => handleTagClick(e, tag.name)}
+                          >
+                            <TagIcon className="h-3 w-3 opacity-70" />
+                            {tag.name}
+                          </Badge>
+                        ))}
+                        {tags.length > 3 && (
+                          <Badge
+                            variant="outline"
+                            className="px-2 py-1 text-xs"
+                          >
+                            +{tags.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                      <Button 
+                        onClick={() => setIsEditingTags(true)} 
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </Button>
+                    </>
+                  ) : (
+                    <Button 
+                      onClick={() => setIsEditingTags(true)} 
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      <span className="hidden sm:inline">Add Tags</span>
+                      <span className="inline sm:hidden">Tags</span>
+                    </Button>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
         
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePlay}
-            title="Play"
-          >
-            <Play className="h-5 w-5" />
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDownload}
-            title="Download"
-          >
-            <Download className="h-5 w-5" />
-          </Button>
-          
-          {allowAddToPack && (
-            <DropdownMenu open={showAddToPackMenu} onOpenChange={setShowAddToPackMenu}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Add to Pack"
-                >
-                  <Plus className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Add to Pack</DropdownMenuLabel>
-                
-                {isLoadingPacks ? (
-                  <DropdownMenuItem disabled>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading packs...
-                  </DropdownMenuItem>
-                ) : packs.length === 0 ? (
-                  <DropdownMenuItem disabled>No packs available</DropdownMenuItem>
-                ) : (
-                  packs.map((pack) => (
-                    <DropdownMenuItem 
-                      key={pack.id} 
-                      onClick={() => handleAddToPack(pack.id)}
-                    >
-                      <Music className="h-4 w-4 mr-2" />
-                      {pack.name}
+        {!isEditingName && (
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handlePlay}
+              title="Play"
+              className="h-8 w-8 sm:h-10 sm:w-10"
+            >
+              <Play className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDownload}
+              title="Download"
+              className="sm:block hidden h-10 w-10"
+            >
+              <Download className="h-5 w-5" />
+            </Button>
+            
+            {allowAddToPack && (
+              <DropdownMenu open={showAddToPackMenu} onOpenChange={setShowAddToPackMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Add to Pack"
+                    className="hidden sm:flex h-10 w-10"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Add to Pack</DropdownMenuLabel>
+                  
+                  {isLoadingPacks ? (
+                    <DropdownMenuItem disabled>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading packs...
                     </DropdownMenuItem>
-                  ))
-                )}
-                
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleCreateNewPack}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create New Pack
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            title="Delete"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-5 w-5" />
-          </Button>
-        </div>
+                  ) : packs.length === 0 ? (
+                    <DropdownMenuItem disabled>No packs available</DropdownMenuItem>
+                  ) : (
+                    packs.map((pack) => (
+                      <DropdownMenuItem 
+                        key={pack.id} 
+                        onClick={() => handleAddToPack(pack.id)}
+                      >
+                        <Music className="h-4 w-4 mr-2" />
+                        {pack.name}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                  
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleCreateNewPack}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create New Pack
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              title="Delete"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 sm:h-10 sm:w-10"
+            >
+              <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

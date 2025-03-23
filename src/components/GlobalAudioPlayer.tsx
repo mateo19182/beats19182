@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronUp, ChevronDown, Music } from 'lucide-react';
+import { X, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WaveformPlayer } from './WaveformPlayer';
 import { toast } from '@/components/ui/use-toast';
@@ -32,7 +32,6 @@ export function playAudio(file: AudioFile) {
 
 export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) {
   const [currentFile, setCurrentFile] = useState<AudioFile | null>(null);
-  const [isExpanded, setIsExpanded] = useState(true);
   const [audioSrc, setAudioSrc] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,14 +47,12 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
     if (file.src) {
       setAudioSrc(file.src);
       setIsPlaying(true);
-      setIsExpanded(true);
       return;
     }
     
     // Otherwise use the API endpoint
     setAudioSrc(`/api/files/${file.id}`);
     setIsPlaying(true);
-    setIsExpanded(true); // Auto-expand when a new file is played
   }, []);
 
   useEffect(() => {
@@ -70,6 +67,11 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
 
   const handlePlayPause = () => {
     setIsPlaying(prev => !prev);
+  };
+
+  const handleClose = () => {
+    setCurrentFile(null);
+    setIsPlaying(false);
   };
 
   const loadAudio = async (file: AudioFile) => {
@@ -113,19 +115,15 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
 
   return (
     <div 
-      className={cn(
-        "fixed bottom-0 left-0 right-0 bg-popover border-t shadow-lg transition-all duration-300 z-50",
-        isExpanded ? "h-auto pb-4" : "h-14",
-        "md:pb-2"
-      )}
+      className="fixed bottom-0 left-0 right-0 bg-popover border-t shadow-lg z-50 h-auto pb-4"
       style={{ backgroundColor: 'var(--popover)' }}
     >
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={handleClose}
         className="absolute -top-8 right-4 bg-popover p-1 rounded-t-md border border-b-0"
         style={{ backgroundColor: 'var(--popover)' }}
       >
-        {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        <X size={16} />
       </button>
       
       <div className="flex items-center px-4 h-14">
@@ -137,21 +135,19 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
         </div>
       </div>
       
-      {isExpanded && (
-        <div className="px-4 pt-0 pb-1">
-          <WaveformPlayer 
-            audioUrl={audioSrc}
-            playing={isPlaying}
-            onPlayPause={handlePlayPause}
-            height={60}
-            progressColor="hsl(var(--primary))"
-            waveColor="rgba(0, 0, 0, 0.15)"
-            barWidth={2}
-            barGap={2}
-            barRadius={2}
-          />
-        </div>
-      )}
+      <div className="px-4 pt-0 pb-1">
+        <WaveformPlayer 
+          audioUrl={audioSrc}
+          playing={isPlaying}
+          onPlayPause={handlePlayPause}
+          height={60}
+          progressColor="hsl(var(--primary))"
+          waveColor="rgba(0, 0, 0, 0.15)"
+          barWidth={2}
+          barGap={2}
+          barRadius={2}
+        />
+      </div>
     </div>
   );
 } 
