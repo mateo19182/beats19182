@@ -11,6 +11,28 @@ Self-hosted platform for managing and sharing audio files with a structured tagg
 ![Screenshot 2](./public/edit-pack.png)
 ![Screenshot 3](./public/files.png)
 
+## Setup and Configuration
+
+create a .env file and set the variables in docker-compose.yml
+run docker compose up
+
+## TODO
+
+- change name from files page
+- global player should be closed not minimized, also fix
+- actual sort by date and get from date from tags
+- get rid of all the random text 
+- complete uploads with gente: cxx, yl, ... and new beats
+- public facing page with my music
+- actually good UI
+- images for covers
+- bpm and key ? automatic recgnition
+- User activity logging
+- API for external integrations
+- mobile version
+- Dark mode
+- visualizer
+
 ## Features
 
 ### File Management
@@ -36,22 +58,3 @@ Self-hosted platform for managing and sharing audio files with a structured tagg
 - **Database:** PostgreSQL (via Prisma ORM)
 - **Storage:** MinIO (S3-compatible object storage)
 - **Auth:** NextAuth.js (JWT-based authentication)
-
-## Setup and Configuration
-
-create a .env file and set the variables in docker-compose.yml
-
-run docker compose up
-
-## TODO
-
-- public facing page with my music
-- actually good UI
-- images for covers
-- bpm and key ? automatic recgnition
-- actual sort by date.
-- User activity logging
-- API for external integrations
-- mobile
-- Dark mode
-- visualizer

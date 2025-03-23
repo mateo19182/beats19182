@@ -30,7 +30,7 @@ export function FileUpload({
   onUpload,
   multiple = false,
   accept = 'audio/*',
-  maxSize = 100, // Default 100MB
+  maxSize = 250, // Default 100MB
   disabled = false, // Default to not disabled
   suggestedTags = [] // Default to empty array
 }: FileUploadProps) {
@@ -320,6 +320,20 @@ export function FileUpload({
         </p>
       </div>
 
+      {/* Upload button moved to the top */}
+      {fileEntries.length > 0 && (
+        <Button
+          onClick={handleUpload}
+          disabled={fileEntries.length === 0 || disabled}
+          className="w-full py-4 text-lg font-semibold shadow-sm relative"
+        >
+          <span className="flex items-center justify-center gap-2">
+            <Upload className="h-5 w-5" />
+            Upload {fileEntries.length > 0 ? `${fileEntries.length} File${fileEntries.length > 1 ? 's' : ''}` : ''}
+          </span>
+        </Button>
+      )}
+
       {fileEntries.length > 0 && (
         <div className="space-y-2">
           <Label>Selected Files</Label>
@@ -422,14 +436,6 @@ export function FileUpload({
           </ul>
         </div>
       )}
-
-      <Button
-        onClick={handleUpload}
-        disabled={fileEntries.length === 0 || disabled}
-        className="w-full"
-      >
-        Upload {fileEntries.length > 0 ? `(${fileEntries.length})` : ''}
-      </Button>
     </div>
   );
 } 

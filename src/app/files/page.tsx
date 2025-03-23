@@ -69,7 +69,7 @@ function FilesPageContent() {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState('all');
-  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortBy, setSortBy] = useState('random');
   const [sortOrder, setSortOrder] = useState('desc');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
@@ -170,7 +170,7 @@ function FilesPageContent() {
   const clearFilters = () => {
     setSearchQuery('');
     setSelectedTag('all');
-    setSortBy('createdAt');
+    setSortBy('random');
     setSortOrder('desc');
   };
 
@@ -179,8 +179,13 @@ function FilesPageContent() {
       'createdAt': 'Date',
       'name': 'Name',
       'size': 'Size',
-      'type': 'Type'
+      'type': 'Type',
+      'random': 'Random'
     };
+    
+    if (field === 'random') {
+      return 'Random';
+    }
     
     return `${fieldLabels[field] || field} (${order === 'asc' ? 'A-Z' : 'Z-A'})`;
   };
@@ -209,7 +214,7 @@ function FilesPageContent() {
     }));
   };
 
-  const hasActiveFilters = debouncedSearchQuery || selectedTag !== 'all' || sortBy !== 'createdAt' || sortOrder !== 'desc';
+  const hasActiveFilters = debouncedSearchQuery || selectedTag !== 'all' || sortBy !== 'random' || sortOrder !== 'desc';
 
   return (
     <div className="container mx-auto py-8 pb-28 sm:pb-24">
@@ -269,6 +274,9 @@ function FilesPageContent() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setSortBy('random'); setSortOrder('desc'); }}>
+                Random
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => { setSortBy('createdAt'); setSortOrder('desc'); }}>
                 Date (Newest first)
               </DropdownMenuItem>
@@ -327,14 +335,14 @@ function FilesPageContent() {
                 </Button>
               </Badge>
             )}
-            {(sortBy !== 'createdAt' || sortOrder !== 'desc') && (
+            {(sortBy !== 'random' || sortOrder !== 'desc') && (
               <Badge variant="secondary" className="flex items-center gap-1">
                 Sort: {getSortLabel(sortBy, sortOrder)}
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   className="h-4 w-4 p-0 ml-1" 
-                  onClick={() => { setSortBy('createdAt'); setSortOrder('desc'); }}
+                  onClick={() => { setSortBy('random'); setSortOrder('desc'); }}
                 >
                   <X className="h-3 w-3" />
                 </Button>

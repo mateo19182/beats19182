@@ -117,12 +117,20 @@ export default function UploadPage() {
         const fileTagsArray = fileTags[i.toString()] || [];
         console.log(`Tags for file ${displayName} (index ${i}):`, fileTagsArray);
         
+        // Merge file-specific tags with global tags instead of replacing them
+        // Use a Set to ensure unique tags
+        const mergedTags = new Set([
+          ...fileTagsArray,
+          ...(Array.isArray(tags) ? tags : [])
+        ]);
+        const uniqueTags = Array.from(mergedTags);
+        
         // Log any tags assigned to this file
-        if (fileTagsArray && fileTagsArray.length > 0) {
-          addLog(`File has ${fileTagsArray.length} tags: ${fileTagsArray.join(', ')}`, 'info');
+        if (uniqueTags.length > 0) {
+          addLog(`File has ${uniqueTags.length} tags: ${uniqueTags.join(', ')}`, 'info');
           
           // Add any new tags to our suggested tags list for future autocomplete
-          const newTags = fileTagsArray.filter(tag => !suggestedTags.includes(tag));
+          const newTags = uniqueTags.filter(tag => !suggestedTags.includes(tag));
           if (newTags.length > 0) {
             setSuggestedTags(prev => [...prev, ...newTags]);
           }
@@ -160,20 +168,16 @@ export default function UploadPage() {
           formData.append('file', file);
         }
         
-        // Add per-file tags to the form data
-        const tagsToUse = fileTagsArray && fileTagsArray.length > 0 
-          ? fileTagsArray 
-          : (Array.isArray(tags) ? tags : []); // Use global tags as fallback, ensure it's an array
-        
-        if (tagsToUse && tagsToUse.length > 0) {
+        // Add merged tags to the form data
+        if (uniqueTags.length > 0) {
           // Add each tag individually to the form data
-          tagsToUse.forEach(tag => {
+          uniqueTags.forEach(tag => {
             if (tag && tag.trim()) { // Only add non-empty tags
               formData.append('tags', tag.trim());
             }
           });
           
-          addLog(`Adding tags: ${tagsToUse.join(', ')}`, 'info');
+          addLog(`Adding tags: ${uniqueTags.join(', ')}`, 'info');
         }
         
         // Create a custom XMLHttpRequest to track progress
@@ -298,6 +302,17 @@ export default function UploadPage() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-6">
+          {/* Upload Button at the top - more noticeable */}
+          {Object.keys(uploadProgress).length === 0 && (
+            <Button 
+              onClick={() => document.querySelector('button[class*="w-full"]:not([class*="py-6"])') as HTMLButtonElement}
+              disabled={isUploading}
+              className="w-full py-6 text-lg font-bold"
+            >
+              Upload Files
+            </Button>
+          )}
+
           <FileUpload 
             onUpload={handleUpload} 
             multiple={true} 
