@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { minioClient, BUCKET_NAME, generateObjectName } from '@/lib/minio';
+import crypto from 'crypto';
 
 // Maximum file size (100MB)
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -81,9 +82,10 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     let tags = formData.getAll('tags') as string[];
+    const customFileName = formData.get('customFileName') as string;
     
     // Extract tags from filename if present
-    const { cleanName, extractedTags } = extractTagsFromFilename(file.name);
+    const { cleanName, extractedTags } = extractTagsFromFilename(customFileName || file.name);
     const origFilename = file.name;
     
     // Merge tags from filename with tags from form
@@ -155,8 +157,97 @@ export async function POST(request: NextRequest) {
     let fileRecord;
     const buffer = Buffer.from(await file.arrayBuffer());
     
+    // Calculate file hash
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    
+    // Check for duplicate content
+    const duplicateFile = await prisma.file.findFirst({
+      where: {
+        hash: hash,
+        NOT: {
+          name: cleanName // Exclude the current file if it exists
+        }
+      },
+      include: {
+        versions: {
+          orderBy: {
+            version: 'desc',
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (duplicateFile) {
+      logger.info(`Duplicate content found for file: ${cleanName}`, {
+        duplicateName: duplicateFile.name,
+        hash: hash
+      });
+      return NextResponse.json(
+        { 
+          error: 'Duplicate content detected',
+          duplicateFile: {
+            id: duplicateFile.id,
+            name: duplicateFile.name,
+            path: duplicateFile.path,
+            type: duplicateFile.type,
+            size: duplicateFile.size,
+            currentVersion: duplicateFile.currentVersion
+          }
+        },
+        { status: 409 }
+      );
+    }
+
     if (existingFile) {
-      // File exists, create new version
+      // File exists, check if content is the same as the latest version
+      const latestVersion = existingFile.versions[0];
+      if (latestVersion && latestVersion.hash === hash) {
+        // Content is the same, delete the previous version and keep the existing one
+        logger.info(`New version has same content as previous version for file: ${cleanName}`);
+        
+        // Delete the previous version from MinIO
+        if (latestVersion.path) {
+          try {
+            await minioClient.removeObject(BUCKET_NAME, latestVersion.path);
+            logger.info(`Deleted previous version from MinIO: ${latestVersion.path}`);
+          } catch (error) {
+            logger.error(`Failed to delete previous version from MinIO: ${error}`);
+            // Continue even if deletion fails
+          }
+        }
+
+        // Update file record with new hash and tags
+        fileRecord = await prisma.file.update({
+          where: { id: existingFile.id },
+          data: {
+            hash: hash,
+            tags: {
+              set: [], // First disconnect all existing tags
+              connectOrCreate: tags.map(tag => ({
+                where: { name: tag },
+                create: { name: tag },
+              })),
+            },
+          },
+          include: {
+            versions: {
+              orderBy: {
+                version: 'desc',
+              },
+            },
+            tags: true, // Include tags in the response
+          },
+        });
+
+        logger.info(`File updated with same content: ${cleanName}`);
+        return NextResponse.json({
+          file: fileRecord,
+          message: 'File updated with same content',
+        });
+      }
+
+      // Content is different, create new version
       const newVersion = existingFile.currentVersion + 1;
       const objectName = generateObjectName(user.id, cleanName, newVersion);
 
@@ -177,6 +268,7 @@ export async function POST(request: NextRequest) {
             version: newVersion,
             path: objectName,
             size: file.size,
+            hash: hash,
             fileId: existingFile.id,
           },
         }),
@@ -186,7 +278,9 @@ export async function POST(request: NextRequest) {
             currentVersion: newVersion,
             path: objectName,
             size: file.size,
+            hash: hash,
             tags: {
+              set: [], // First disconnect all existing tags
               connectOrCreate: tags.map(tag => ({
                 where: { name: tag },
                 create: { name: tag },
@@ -199,6 +293,7 @@ export async function POST(request: NextRequest) {
                 version: 'desc',
               },
             },
+            tags: true, // Include tags in the response
           },
         }),
       ]);
@@ -212,46 +307,50 @@ export async function POST(request: NextRequest) {
 
       // Upload to MinIO
       logger.debug(`Uploading new file to MinIO: ${objectName}`);
-    const uploadStartTime = Date.now();
-    await minioClient.putObject(BUCKET_NAME, objectName, buffer, buffer.length, {
-      'Content-Type': file.type,
-    });
-    const uploadEndTime = Date.now();
-    logger.success(`File uploaded to MinIO successfully in ${uploadEndTime - uploadStartTime}ms`);
+      const uploadStartTime = Date.now();
+      await minioClient.putObject(BUCKET_NAME, objectName, buffer, buffer.length, {
+        'Content-Type': file.type,
+      });
+      const uploadEndTime = Date.now();
+      logger.success(`File uploaded to MinIO successfully in ${uploadEndTime - uploadStartTime}ms`);
 
       // Create file and version records
-    const dbStartTime = Date.now();
+      const dbStartTime = Date.now();
       fileRecord = await prisma.file.create({
-      data: {
-        name: cleanName, // Use the clean name without tags
-        path: objectName,
-        type: file.type,
-        size: file.size,
-        userId: user.id,
+        data: {
+          name: cleanName,
+          path: objectName,
+          type: file.type,
+          size: file.size,
+          hash: hash,
+          userId: user.id,
           currentVersion: 1,
           versions: {
             create: {
               version: 1,
               path: objectName,
               size: file.size,
+              hash: hash,
             },
           },
-        tags: {
-          connectOrCreate: tags.map(tag => ({
-            where: { name: tag },
-            create: { name: tag },
-          })),
+          tags: {
+            connectOrCreate: tags.map(tag => ({
+              where: { name: tag },
+              create: { name: tag },
+            })),
+          },
         },
-      },
         include: {
           versions: {
             orderBy: {
               version: 'desc',
             },
           },
+          tags: true, // Include tags in the response
         },
-    });
-    const dbEndTime = Date.now();
+      });
+
+      const dbEndTime = Date.now();
       logger.success(`Database records created in ${dbEndTime - dbStartTime}ms`);
     }
 
@@ -272,6 +371,7 @@ export async function POST(request: NextRequest) {
         size: fileRecord.size,
         currentVersion: fileRecord.currentVersion,
         versions: fileRecord.versions,
+        tags: fileRecord.tags, // Include tags in the response
         processingTime: endTime - startTime
       },
     });

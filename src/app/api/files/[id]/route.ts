@@ -106,7 +106,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = params;
-    const { tags } = await request.json();
+    const { name, tags } = await request.json();
     
     // Get the current file
     const file = await prisma.file.findUnique({
@@ -120,32 +120,35 @@ export async function PATCH(
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
     
-    // Update the file tags
+    // Update the file name and tags
     const updatedFile = await prisma.file.update({
       where: { id },
       data: {
-        tags: {
-          set: [], // Clear existing tags
-          connectOrCreate: tags.map((tag: string) => ({
-            where: { name: tag },
-            create: { name: tag },
-          })),
-        },
+        ...(name && { name }), // Only update name if provided
+        ...(tags && {
+          tags: {
+            set: [], // Clear existing tags
+            connectOrCreate: tags.map((tag: string) => ({
+              where: { name: tag },
+              create: { name: tag },
+            })),
+          },
+        }),
       },
       include: {
         tags: true,
       },
     });
     
-    logger.info('Updated file tags', { fileId: id });
+    logger.info('Updated file metadata', { fileId: id, name, tags });
     
     return NextResponse.json({
-      message: 'File tags updated successfully',
+      message: 'File updated successfully',
       file: updatedFile,
     });
   } catch (error: any) {
-    logger.error('Error updating file tags:', { error: error.message || 'Unknown error' });
-    return NextResponse.json({ error: 'Failed to update file tags' }, { status: 500 });
+    logger.error('Error updating file:', { error: error.message || 'Unknown error' });
+    return NextResponse.json({ error: 'Failed to update file' }, { status: 500 });
   }
 }
 

@@ -36,6 +36,7 @@ export default function UploadPage() {
   const [totalFiles, setTotalFiles] = useState(0);
   const [progress, setProgress] = useState(0);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [fileEntries, setFileEntries] = useState<Array<{ id: string; displayName: string }>>([]);
   
   // List of suggested tags - we'll populate this from the API
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
@@ -109,7 +110,7 @@ export default function UploadPage() {
       setTotalFiles(totalFiles);
       
       // Add initial log
-      addLog(`Starting upload of ${files.length} file(s)`, 'info');
+      addLog(`Starting upload of ${files.length} file(s)`, 'pending');
       
       // Upload each file one by one
       for (let i = 0; i < files.length; i++) {
@@ -117,7 +118,10 @@ export default function UploadPage() {
         const fileIndex = i.toString();
         
         // Get tags for this file or use empty array
-        const tags = fileTags[fileIndex] || [];
+        const fileSpecificTags = fileTags[fileIndex] || [];
+        
+        // Combine default tags with file-specific tags
+        const allTags = [...new Set([...tags, ...fileSpecificTags])];
         
         // Get custom filename for this file or use original name
         const customFileName = fileNames[fileIndex] || file.name;
@@ -126,25 +130,21 @@ export default function UploadPage() {
         const fileProgressId = `file-${i}-${Date.now()}`;
         setUploadProgress(prev => ({ ...prev, [fileProgressId]: 0 }));
         
-        addLog(`Preparing to upload: ${customFileName}`, 'info');
-        
         // Create a FormData instance
         const formData = new FormData();
         formData.append('file', file);
         
         // Add each tag to the form data
-        tags.forEach(tag => {
+        allTags.forEach(tag => {
           formData.append('tags', tag);
         });
         
-        // Add custom filename if provided
-        if (customFileName && customFileName !== file.name) {
-          formData.append('customFileName', customFileName);
-        }
+        // Always add the custom filename, even if it's the same as the original
+        formData.append('customFileName', customFileName);
         
         try {
           // Upload the file
-          addLog(`Uploading ${customFileName}...`, 'pending');
+          addLog(`Uploading ${customFileName}...`, 'info');
           setUploadProgress(prev => ({ ...prev, [fileProgressId]: 30 }));
           
           const uploadResponse = await fetch('/api/upload', {
@@ -160,6 +160,15 @@ export default function UploadPage() {
           }
           
           const uploadResult = await uploadResponse.json();
+          
+          // Log the upload result details
+          if (uploadResult.message === 'File updated with same content') {
+            addLog(`File ${customFileName} was updated as it already existed with the same content`, 'success');
+          } else if (uploadResult.file.currentVersion > 1) {
+            addLog(`File ${customFileName} was uploaded as version ${uploadResult.file.currentVersion}`, 'success');
+          } else {
+            addLog(`File ${customFileName} was uploaded successfully`, 'success');
+          }
           
           // If we have an image for this file, upload it
           if (fileImages && fileImages[fileIndex]) {
@@ -191,7 +200,7 @@ export default function UploadPage() {
           setSuccessCount(prev => prev + 1);
           
           // Log success
-          addLog(`Successfully uploaded ${customFileName}`, 'success');
+          // addLog(`Successfully uploaded ${customFileName}`, 'success');
         } catch (error) {
           console.error(`Error uploading ${file.name}:`, error);
           
@@ -215,7 +224,7 @@ export default function UploadPage() {
       }
       
       // Final log
-      addLog(`Upload process completed: ${successCount} of ${files.length} files uploaded successfully`, 'info');
+      addLog(`Upload process completed: ${files.length} file(s) uploaded successfully`, 'success');
       
       // Show success message
       if (files.length > 0) {
@@ -303,6 +312,8 @@ export default function UploadPage() {
             maxSize={100}
             disabled={isUploading}
             suggestedTags={suggestedTags}
+            defaultTags={tags}
+            onFileEntriesChange={setFileEntries}
           />
           
           {/* Progress Bars */}
@@ -310,11 +321,11 @@ export default function UploadPage() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Upload Progress</h3>
               {Object.entries(uploadProgress).map(([fileId, progress]) => {
-                // Extract the filename from the fileId by taking everything before the last hyphen
-                const lastHyphenIndex = fileId.lastIndexOf('-');
-                const displayName = lastHyphenIndex > 0 
-                  ? fileId.substring(0, lastHyphenIndex)
-                  : fileId;
+                // Get the file index from the fileId (format: file-{index}-{timestamp})
+                const match = fileId.match(/file-(\d+)-/);
+                const fileIndex = match ? parseInt(match[1]) : -1;
+                const file = fileIndex >= 0 ? fileEntries[fileIndex] : null;
+                const displayName = file ? file.displayName : fileId;
                 
                 return (
                   <div key={fileId} className="space-y-1">
@@ -370,16 +381,12 @@ export default function UploadPage() {
           <div className="bg-muted p-4 rounded-lg">
             <h3 className="font-medium mb-2">Tips for uploading</h3>
             <ul className="text-sm space-y-1 list-disc pl-4">
-              <li>Maximum file size is 100MB</li>
-              <li>Supported formats: MP3, WAV, OGG, FLAC, AAC, M4A</li>
-              <li>Add tags to individual files or set default tags for all files</li>
-              <li>Add images to represent your audio files</li>
-              <li>Preview your audio before uploading</li>
-              <li>You can upload multiple files at once</li>
-              <li>Track upload progress in real-time</li>
-              <li>View detailed logs of the upload process</li>
+              <li>Files: ≤100MB, formats: MP3, WAV, OGG, FLAC, AAC, M4A</li>
+              <li>Tag files individually or set defaults</li>
+              <li>Add images, preview audio, multi-file uploads</li>
+              <li>Real-time progress & detailed logs</li>
               <li>
-                <strong>Auto-tag from filename:</strong> Name your files with tags using either format:
+                <strong>Auto-tag:</strong> Use 
                 <code className="px-1 py-0.5 bg-background rounded text-xs ml-1">track[tag1,tag2].mp3</code> or 
                 <code className="px-1 py-0.5 bg-background rounded text-xs ml-1">track[tag1][tag2].mp3</code>
               </li>

@@ -240,12 +240,6 @@ export function TagsInput({
           )}
         </div>
       </div>
-      
-      {safeTags.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          Tags help you organize and find your files more easily
-        </p>
-      )}
     </div>
   );
 } 

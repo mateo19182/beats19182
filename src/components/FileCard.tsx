@@ -697,8 +697,8 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <div className="flex items-center max-w-[90%] sm:max-w-[85%]">
-                  <h3 className="font-medium truncate text-sm" title={name}>{name}</h3>
+                <div className="flex items-center flex-1 min-w-0 mr-2">
+                  <h3 className="font-medium truncate text-sm flex-1" title={name}>{name}</h3>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -709,7 +709,7 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
                     <Edit className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="hidden sm:block ml-2 flex-shrink-0">
+                <div className="hidden sm:block flex-shrink-0">
                   <Select value={selectedVersion.toString()} onValueChange={(value) => setSelectedVersion(parseInt(value))}>
                     <SelectTrigger className="h-6 w-[40px] text-xs px-2">
                       <SelectValue placeholder={selectedVersion.toString()} />
@@ -817,7 +817,7 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
                         onClick={() => setIsEditingTags(true)} 
                         size="sm"
                         variant="ghost"
-                        className="h-6 px-2 text-xs"
+                        className="h-6 px-2 text-xs flex-shrink-0"
                       >
                         <Edit className="h-3 w-3 mr-1" />
                         <span className="hidden sm:inline">Edit</span>
@@ -828,7 +828,7 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
                       onClick={() => setIsEditingTags(true)} 
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-xs"
+                      className="h-6 px-2 text-xs flex-shrink-0"
                     >
                       <Plus className="h-3 w-3 mr-1" />
                       <span className="hidden sm:inline">Add Tags</span>

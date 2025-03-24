@@ -7,6 +7,34 @@ import { Upload, X, Play, Pause, Edit, Check, Image as ImageIcon } from 'lucide-
 import { TagsInput } from '@/components/TagsInput';
 import { playAudio, AudioFile } from '@/components/GlobalAudioPlayer';
 
+// Function to extract tags from filename
+// Format: supports both filename[tag1,tag2,tag3].ext and filename[tag1][tag2][tag3].ext
+function extractTagsFromFilename(filename: string): { cleanName: string, extractedTags: string[] } {
+  const tagRegex = /\[([^\]]+)\]/g;
+  let cleanName = filename;
+  const extractedTags: string[] = [];
+  
+  let match;
+  while ((match = tagRegex.exec(filename)) !== null) {
+    if (match[1]) {
+      // Split comma-separated tags and trim each tag
+      const tags = match[1].split(',').map(tag => tag.trim()).filter(Boolean);
+      extractedTags.push(...tags);
+    }
+  }
+  
+  // Remove all [tag] sections from the filename
+  cleanName = cleanName.replace(tagRegex, '');
+  
+  // Clean up extra spaces
+  cleanName = cleanName.replace(/\s+/g, ' ').trim();
+  
+  // Handle possible space before extension
+  cleanName = cleanName.replace(/ \.([a-zA-Z0-9]+)$/, '.$1');
+  
+  return { cleanName, extractedTags };
+}
+
 // Define a separate interface to track file metadata 
 interface FileMetadata {
   id: string;
@@ -26,6 +54,8 @@ interface FileUploadProps {
   maxSize?: number; // in MB
   disabled?: boolean;
   suggestedTags?: string[]; // Optional array of suggested tags for autocomplete
+  defaultTags?: string[]; // Default tags to apply to all files
+  onFileEntriesChange?: (entries: Array<{ id: string; displayName: string }>) => void;
 }
 
 export function FileUpload({
@@ -34,7 +64,9 @@ export function FileUpload({
   accept = 'audio/*',
   maxSize = 250, // Default 100MB
   disabled = false, // Default to not disabled
-  suggestedTags = [] // Default to empty array
+  suggestedTags = [], // Default to empty array
+  defaultTags = [], // Default to empty array
+  onFileEntriesChange
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [fileEntries, setFileEntries] = useState<FileMetadata[]>([]);
@@ -75,23 +107,37 @@ export function FileUpload({
 
     if (validFiles.length > 0) {
       // Create file metadata entries
-      const newEntries = validFiles.map(file => ({
-        id: `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        file: file,
-        tags: [],
-        previewUrl: URL.createObjectURL(file),
-        displayName: file.name,
-        isEditingName: false
-      }));
+      const newEntries = validFiles.map(file => {
+        // Extract tags from filename
+        const { cleanName, extractedTags } = extractTagsFromFilename(file.name);
+        
+        // Combine all tags: default tags + filename tags, ensuring no duplicates
+        const allTags = [...new Set([...defaultTags, ...extractedTags])];
+        
+        return {
+          id: `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          file: file,
+          tags: allTags,
+          previewUrl: URL.createObjectURL(file),
+          displayName: cleanName,
+          isEditingName: false
+        };
+      });
 
       if (multiple) {
-        setFileEntries(prev => [...prev, ...newEntries]);
+        setFileEntries(prev => {
+          const updated = [...prev, ...newEntries];
+          onFileEntriesChange?.(updated.map(entry => ({ id: entry.id, displayName: entry.displayName })));
+          return updated;
+        });
       } else {
         // Clean up previous preview URLs to avoid memory leaks
         fileEntries.forEach(entry => {
           URL.revokeObjectURL(entry.previewUrl);
         });
-        setFileEntries(newEntries.slice(0, 1));
+        const updated = newEntries.slice(0, 1);
+        setFileEntries(updated);
+        onFileEntriesChange?.(updated.map(entry => ({ id: entry.id, displayName: entry.displayName })));
       }
     }
   };
@@ -133,7 +179,11 @@ export function FileUpload({
       setCurrentPlayingIndex(currentPlayingIndex - 1);
     }
     
-    setFileEntries(prev => prev.filter((_, i) => i !== index));
+    setFileEntries(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      onFileEntriesChange?.(updated.map(entry => ({ id: entry.id, displayName: entry.displayName })));
+      return updated;
+    });
   };
 
   const handleImageAdd = (index: number) => {
@@ -227,12 +277,12 @@ export function FileUpload({
         filesToUpload.push(entry.file);
         
         // Store tags using index to guarantee correct matching
-        fileTagsMap[index.toString()] = Array.isArray(entry.tags) ? entry.tags : [];
+        // Combine default tags with file-specific tags
+        const allTags = [...new Set([...defaultTags, ...(entry.tags || [])])];
+        fileTagsMap[index.toString()] = allTags;
         
-        // Store custom filenames if they differ from the original
-        if (entry.displayName && entry.file.name && entry.displayName !== entry.file.name) {
-          customFilenames[index.toString()] = entry.displayName;
-        }
+        // Always store the display name, whether it's custom or original
+        customFilenames[index.toString()] = entry.displayName;
         
         // Store images if present
         if (entry.image) {
@@ -317,16 +367,19 @@ export function FileUpload({
   const handleTagsChange = (index: number, newTags: string[]) => {
     if (disabled) return;
     
-    // Make sure to only store clean, non-empty tags
+    // Clean the new tags
     const cleanTags = Array.isArray(newTags) ? newTags
       .map(tag => tag.trim())
       .filter(tag => tag.length > 0) : [];
     
     setFileEntries(prev => {
       const updated = [...prev];
+      // Always include default tags first, then add individual tags
+      const allTags = [...new Set([...defaultTags, ...cleanTags])];
+      
       updated[index] = {
         ...updated[index],
-        tags: cleanTags
+        tags: allTags
       };
       return updated;
     });
@@ -365,11 +418,15 @@ export function FileUpload({
         displayName = `${displayName}.${originalExt}`;
       }
       
+      // Update the entry with the new display name
       updated[index] = {
         ...updated[index],
         displayName,
         isEditingName: false
       };
+      
+      // Notify parent of the change
+      onFileEntriesChange?.(updated.map(entry => ({ id: entry.id, displayName: entry.displayName })));
       return updated;
     });
   };

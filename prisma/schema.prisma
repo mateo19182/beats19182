@@ -29,6 +29,7 @@ model File {
   type          String
   size          Int
   imagePath     String?
+  hash          String?       // Hash of the file content
   userId        String
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags          Tag[]
@@ -40,6 +41,7 @@ model File {
 
   @@index([userId])
   @@unique([userId, name])
+  @@index([hash])
 }
 
 model FileVersion {
@@ -47,12 +49,14 @@ model FileVersion {
   version       Int
   path          String
   size          Int
+  hash          String?   // Hash of the file content
   fileId        String
   file          File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
   createdAt     DateTime  @default(now())
 
   @@unique([fileId, version])
   @@index([fileId])
+  @@index([hash])
 }
 
 model Tag {
