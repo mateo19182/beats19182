@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Play, Download, Music, Trash2, Plus, Edit, Tag as TagIcon, Check, X } from 'lucide-react';
+import { Play, Download, Music, Trash2, Plus, Edit, Tag as TagIcon, Check, X, Upload, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Tag } from '@prisma/client';
@@ -31,11 +31,37 @@ interface FileCardProps {
   createdAt: Date;
   tags: Tag[];
   currentVersion: number;
+  imagePath?: string;
   onDelete?: () => void;
   allowAddToPack?: boolean;
 }
 
-export function FileCard({ id, name, type, size, createdAt, tags, currentVersion, onDelete, allowAddToPack = true }: FileCardProps) {
+// Add a utility function to generate deterministic colors from a string (file ID)
+const generateColors = (str: string) => {
+  // Simple hash function to get a number from a string
+  const hash = str.split('').reduce((acc, char) => {
+    return char.charCodeAt(0) + ((acc << 5) - acc);
+  }, 0);
+  
+  // Generate primary color (hue between 0-360)
+  const h1 = Math.abs(hash % 360);
+  // Generate secondary color (complementary - 180 degrees apart)
+  const h2 = (h1 + 180) % 360;
+  
+  return {
+    color1: `hsl(${h1}, 80%, 65%)`,
+    color2: `hsl(${h2}, 80%, 65%)`,
+    angle: Math.abs((hash * 137) % 360) // Using golden angle (137.5°) for variety
+  };
+};
+
+// Generate a CSS background property for placeholder
+const generatePlaceholderBackground = (fileId: string) => {
+  const { color1, color2, angle } = generateColors(fileId);
+  return `linear-gradient(${angle}deg, ${color1}, ${color2})`;
+};
+
+export function FileCard({ id, name, type, size, createdAt, tags, currentVersion, imagePath, onDelete, allowAddToPack = true }: FileCardProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -53,6 +79,9 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
   const [isEditingName, setIsEditingName] = useState(false);
   const [currentName, setCurrentName] = useState(name);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(imagePath || null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Fetch user packs when dropdown is opened
   useEffect(() => {
@@ -433,12 +462,188 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
     }
   };
   
+  // Handle image upload
+  const handleImageClick = () => {
+    fileInputRef.current?.click();
+  };
+  
+  // Add this near the other useEffect hooks
+  useEffect(() => {
+    if (imagePath) {
+      console.log(`Setting up image for file ${id}: ${imagePath}`);
+      // Set image with cache busting to prevent stale images
+      setImagePreview(`${imagePath}?t=${Date.now()}`);
+    } else {
+      console.log(`No image path for file ${id}`);
+      setImagePreview(null);
+    }
+  }, [imagePath, id]);
+  
+  // Update the handleImageChange function to improve image preview
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    
+    const file = e.target.files[0];
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Image size should be less than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      setIsUploadingImage(true);
+      
+      // Show a local preview immediately
+      const localPreviewUrl = URL.createObjectURL(file);
+      setImagePreview(localPreviewUrl);
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      // Upload image
+      console.log(`Uploading image for file ${id}`);
+      const response = await fetch(`/api/files/${id}/image`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload image');
+      }
+      
+      const data = await response.json();
+      console.log(`Upload successful, new image path: ${data.imagePath}`);
+      
+      // Update image preview with the server path and cache buster
+      const serverImagePath = `${data.imagePath}?t=${Date.now()}`;
+      setImagePreview(serverImagePath);
+      
+      toast({
+        title: 'Image uploaded',
+        description: 'The image has been uploaded successfully',
+      });
+      
+      // Refresh the parent component
+      if (onDelete) {
+        onDelete();
+      }
+      
+      // Revoke the local object URL to avoid memory leaks
+      URL.revokeObjectURL(localPreviewUrl);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to upload image',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+  
+  const handleDeleteImage = async () => {
+    if (confirm('Are you sure you want to remove this image?')) {
+      try {
+        setIsUploadingImage(true);
+        
+        const response = await fetch(`/api/files/${id}/image`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete image');
+        }
+        
+        // Clear image preview
+        setImagePreview(null);
+        
+        toast({
+          title: 'Image removed',
+          description: 'The image has been removed successfully',
+        });
+        
+        // Refresh the parent component
+        if (onDelete) {
+          onDelete();
+        }
+      } catch (error) {
+        console.error('Error deleting image:', error);
+        
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to delete image',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsUploadingImage(false);
+      }
+    }
+  };
+  
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
       <div className={`p-4 flex ${isEditingName ? 'flex-col' : 'items-center space-x-4'}`}>
         {!isEditingName && (
-          <div className="hidden sm:block bg-primary/10 rounded-md p-3 flex-shrink-0">
-            <Music className="h-8 w-8 text-primary" />
+          <div className="hidden sm:block relative bg-primary/10 rounded-md p-2 flex-shrink-0 w-24 h-24">
+            {imagePreview ? (
+              <div className="relative w-full h-full cursor-pointer group" onClick={handleImageClick}>
+                <div className="absolute inset-0 rounded-md border border-muted overflow-hidden bg-white">
+                  <img 
+                    src={imagePreview} 
+                    alt={name} 
+                    className="w-full h-full object-cover" 
+                    onError={(e) => {
+                      console.error("Image failed to load:", imagePreview);
+                      // If image fails to load, try again with cache buster
+                      e.currentTarget.src = `/api/files/${id}/image?t=${Date.now()}`;
+                    }}
+                  />
+                </div>
+                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center z-20">
+                  <Upload className="h-5 w-5 text-white mb-1" />
+                  <span className="text-white text-xs">Change</span>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className="w-full h-full cursor-pointer rounded-md border border-muted"
+                style={{ backgroundImage: generatePlaceholderBackground(id) }}
+                onClick={handleImageClick}
+              />
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageChange}
+              disabled={isUploadingImage}
+            />
           </div>
         )}
         
@@ -638,6 +843,34 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
         
         {!isEditingName && (
           <div className="flex items-center space-x-1 sm:space-x-2">
+            {/* Add image button for mobile */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleImageClick}
+              title={imagePreview ? "Change image" : "Add image"}
+              className="sm:hidden h-10 w-10"
+            >
+              {imagePreview ? (
+                <div className="relative h-8 w-8 rounded-full overflow-hidden border border-muted bg-white">
+                  <img 
+                    src={imagePreview} 
+                    alt={name} 
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      // If image fails to load, try again with cache buster
+                      e.currentTarget.src = `/api/files/${id}/image?t=${Date.now()}`;
+                    }}
+                  />
+                </div>
+              ) : (
+                <div 
+                  className="relative h-8 w-8 rounded-full overflow-hidden border border-muted"
+                  style={{ backgroundImage: generatePlaceholderBackground(id) }}
+                />
+              )}
+            </Button>
+
             <Button
               variant="ghost"
               size="icon"
@@ -696,6 +929,33 @@ export function FileCard({ id, name, type, size, createdAt, tags, currentVersion
                   <DropdownMenuItem onClick={handleCreateNewPack}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create New Pack
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            
+            {/* Add option to delete image if one exists */}
+            {imagePreview && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Image options"
+                    className="hidden sm:flex h-10 w-10"
+                  >
+                    <ImageIcon className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Image Options</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={handleImageClick}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Change Image
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDeleteImage} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove Image
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

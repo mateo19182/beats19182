@@ -75,4 +75,12 @@ export async function getLatestVersion(userId: string, fileName: string): Promis
     logger.error('Error getting latest version:', { message: error.message || 'Unknown error' });
     return 0;
   }
+}
+
+// Helper function to generate a unique object name for file images
+export function generateImageObjectName(userId: string, fileId: string): string {
+  const timestamp = Date.now();
+  const randomString = Math.random().toString(36).substring(2, 10);
+  
+  return `images/${userId}/${fileId}/${timestamp}-${randomString}`;
 } 

@@ -18,6 +18,12 @@ type LogEntry = {
   type: 'info' | 'success' | 'error' | 'pending';
 };
 
+// Error entry type
+type ErrorEntry = {
+  fileName: string;
+  error: string;
+};
+
 export default function UploadPage() {
   const { toast } = useToast();
   const [tags, setTags] = useState<string[]>([]);
@@ -25,6 +31,11 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const [errors, setErrors] = useState<ErrorEntry[]>([]);
+  const [successCount, setSuccessCount] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   
   // List of suggested tags - we'll populate this from the API
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
@@ -86,174 +97,146 @@ export default function UploadPage() {
     }, 100);
   }, []);
 
-  const handleUpload = async (files: File[], fileTags: Record<string, string[]>, customFilenames: Record<string, string>) => {
-    setIsUploading(true);
-    setUploadProgress({});
-    setLogs([]); // Clear previous logs
-    
-    addLog(`Starting upload of ${files.length} file(s)`, 'info');
-    
-    // Debug log for fileTags and customFilenames
-    console.log('File tags map:', fileTags);
-    console.log('Custom filenames map:', customFilenames);
-    
+  const handleUpload = async (files: File[], fileTags: Record<string, string[]>, fileNames: Record<string, string>, fileImages?: Record<string, File>) => {
     try {
+      setIsUploading(true);
+      setErrors([]);
+      setSuccessCount(0);
+      setUploadProgress({});
+      
+      // Set up progress tracking
+      const totalFiles = files.length;
+      setTotalFiles(totalFiles);
+      
+      // Add initial log
+      addLog(`Starting upload of ${files.length} file(s)`, 'info');
+      
+      // Upload each file one by one
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        const fileIndex = i.toString();
         
-        // Create a unique identifier for this file upload
-        const uniqueId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        const fileId = `${file.name}-${uniqueId}`;
+        // Get tags for this file or use empty array
+        const tags = fileTags[fileIndex] || [];
         
-        setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
+        // Get custom filename for this file or use original name
+        const customFileName = fileNames[fileIndex] || file.name;
         
-        // Get the custom filename if one exists
-        const customFilename = customFilenames[i.toString()];
-        const displayName = customFilename || file.name;
+        // Create a unique ID for this file in the progress tracker
+        const fileProgressId = `file-${i}-${Date.now()}`;
+        setUploadProgress(prev => ({ ...prev, [fileProgressId]: 0 }));
         
-        addLog(`Preparing to upload: ${displayName} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`, 'info');
+        addLog(`Preparing to upload: ${customFileName}`, 'info');
         
-        // Get tags for this file - use the index string as the key
-        const fileTagsArray = fileTags[i.toString()] || [];
-        console.log(`Tags for file ${displayName} (index ${i}):`, fileTagsArray);
-        
-        // Merge file-specific tags with global tags instead of replacing them
-        // Use a Set to ensure unique tags
-        const mergedTags = new Set([
-          ...fileTagsArray,
-          ...(Array.isArray(tags) ? tags : [])
-        ]);
-        const uniqueTags = Array.from(mergedTags);
-        
-        // Log any tags assigned to this file
-        if (uniqueTags.length > 0) {
-          addLog(`File has ${uniqueTags.length} tags: ${uniqueTags.join(', ')}`, 'info');
-          
-          // Add any new tags to our suggested tags list for future autocomplete
-          const newTags = uniqueTags.filter(tag => !suggestedTags.includes(tag));
-          if (newTags.length > 0) {
-            setSuggestedTags(prev => [...prev, ...newTags]);
-          }
-        }
-        
-        // Create a proper FormData instance with clean data
+        // Create a FormData instance
         const formData = new FormData();
+        formData.append('file', file);
         
-        // Append the file with a custom filename if specified
-        if (customFilename) {
-          // We need to create a new File object with the custom name
-          // Since we can't modify the name property of an existing File object
-          try {
-            // Get file extension from original name
-            const originalExt = file.name.split('.').pop() || '';
-            
-            // Create a new file object with the custom name
-            const renamedFile = new File(
-              [file], 
-              customFilename, 
-              { type: file.type, lastModified: file.lastModified }
-            );
-            
-            formData.append('file', renamedFile);
-            addLog(`Using custom filename: ${customFilename}`, 'info');
-          } catch (error) {
-            console.error('Error creating new file with custom name:', error);
-            // Fallback to original file if renaming fails
-            formData.append('file', file);
-            // Add the custom name as a field that the backend can use
-            formData.append('customFilename', customFilename);
-          }
-        } else {
-          // Use original file
-          formData.append('file', file);
-        }
-        
-        // Add merged tags to the form data
-        if (uniqueTags.length > 0) {
-          // Add each tag individually to the form data
-          uniqueTags.forEach(tag => {
-            if (tag && tag.trim()) { // Only add non-empty tags
-              formData.append('tags', tag.trim());
-            }
-          });
-          
-          addLog(`Adding tags: ${uniqueTags.join(', ')}`, 'info');
-        }
-        
-        // Create a custom XMLHttpRequest to track progress
-        const xhr = new XMLHttpRequest();
-        
-        // Set up progress tracking
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = Math.round((event.loaded / event.total) * 100);
-            setUploadProgress(prev => ({ ...prev, [fileId]: percentComplete }));
-            
-            // Log progress at 25%, 50%, 75%, and 100%
-            if (percentComplete === 25 || percentComplete === 50 || percentComplete === 75 || percentComplete === 100) {
-              addLog(`${displayName}: ${percentComplete}% uploaded`, 'info');
-            }
-          }
+        // Add each tag to the form data
+        tags.forEach(tag => {
+          formData.append('tags', tag);
         });
         
-        // Create a promise to handle the XHR request
-        const uploadPromise = new Promise<any>((resolve, reject) => {
-          xhr.open('POST', '/api/upload', true);
-          
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const response = JSON.parse(xhr.responseText);
-                resolve(response);
-              } catch (e) {
-                reject(new Error('Invalid response format'));
-              }
-            } else {
-              try {
-                const errorResponse = JSON.parse(xhr.responseText);
-                reject(new Error(errorResponse.error || 'Upload failed'));
-              } catch (e) {
-                reject(new Error(`Upload failed with status ${xhr.status}`));
-              }
-            }
-          };
-          
-          xhr.onerror = () => {
-            reject(new Error('Network error occurred'));
-          };
-          
-          xhr.send(formData);
-        });
+        // Add custom filename if provided
+        if (customFileName && customFileName !== file.name) {
+          formData.append('customFileName', customFileName);
+        }
         
         try {
-          const response = await uploadPromise;
+          // Upload the file
+          addLog(`Uploading ${customFileName}...`, 'pending');
+          setUploadProgress(prev => ({ ...prev, [fileProgressId]: 30 }));
           
-          addLog(`Successfully uploaded: ${displayName}`, 'success');
-          
-          toast({
-            title: 'Upload successful',
-            description: `${displayName} has been uploaded successfully.`,
+          const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
           });
+          
+          setUploadProgress(prev => ({ ...prev, [fileProgressId]: 70 }));
+          
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            throw new Error(errorData.error || `Failed to upload ${file.name}`);
+          }
+          
+          const uploadResult = await uploadResponse.json();
+          
+          // If we have an image for this file, upload it
+          if (fileImages && fileImages[fileIndex]) {
+            addLog(`Uploading image for ${customFileName}...`, 'pending');
+            
+            const fileId = uploadResult.file.id;
+            const imageFormData = new FormData();
+            imageFormData.append('image', fileImages[fileIndex]);
+            
+            const imageResponse = await fetch(`/api/files/${fileId}/image`, {
+              method: 'POST',
+              body: imageFormData,
+            });
+            
+            if (!imageResponse.ok) {
+              const errorData = await imageResponse.json();
+              addLog(`Warning: Failed to upload image for ${customFileName}: ${errorData.error}`, 'error');
+              console.error(`Failed to upload image for ${file.name}:`, errorData.error);
+              // Continue execution even if image upload fails
+            } else {
+              addLog(`Image uploaded for ${customFileName}`, 'success');
+            }
+          }
+          
+          // Mark as complete
+          setUploadProgress(prev => ({ ...prev, [fileProgressId]: 100 }));
+          
+          // Increment success count
+          setSuccessCount(prev => prev + 1);
+          
+          // Log success
+          addLog(`Successfully uploaded ${customFileName}`, 'success');
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-          addLog(`Failed to upload ${displayName}: ${errorMessage}`, 'error');
+          console.error(`Error uploading ${file.name}:`, error);
           
-          toast({
-            title: 'Upload failed',
-            description: `${displayName} failed to upload. ${errorMessage}`,
-            variant: 'destructive',
-          });
+          // Log error
+          addLog(`Failed to upload ${customFileName}: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+          
+          setErrors(prev => [
+            ...prev,
+            {
+              fileName: file.name,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+          ]);
+          
+          // Mark as failed in progress
+          setUploadProgress(prev => ({ ...prev, [fileProgressId]: -1 }));
         }
+        
+        // Update overall progress
+        setProgress(Math.round(((i + 1) / totalFiles) * 100));
       }
       
-      addLog(`Upload process completed`, 'info');
+      // Final log
+      addLog(`Upload process completed: ${successCount} of ${files.length} files uploaded successfully`, 'info');
+      
+      // Show success message
+      if (files.length > 0) {
+        toast({
+          title: 'Upload complete',
+          description: `Successfully uploaded ${files.length - errors.length} of ${files.length} files`,
+        });
+      }
+      
+      // Reset file list after upload if all succeeded
+      if (errors.length === 0) {
+        setShowConfirmation(true);
+      }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      addLog(`Unexpected error: ${errorMessage}`, 'error');
+      console.error('Error in upload handler:', error);
+      
+      addLog(`Unexpected error: ${error instanceof Error ? error.message : 'An unknown error occurred'}`, 'error');
       
       toast({
         title: 'Upload failed',
-        description: errorMessage,
+        description: error instanceof Error ? error.message : 'An error occurred during upload',
         variant: 'destructive',
       });
     } finally {
@@ -337,12 +320,14 @@ export default function UploadPage() {
                   <div key={fileId} className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="truncate">{displayName}</span>
-                      <span>{progress}%</span>
+                      <span>{progress < 0 ? 'Failed' : `${progress}%`}</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2.5">
                       <div 
-                        className="bg-primary h-2.5 rounded-full transition-all duration-300" 
-                        style={{ width: `${progress}%` }}
+                        className={`h-2.5 rounded-full transition-all duration-300 ${
+                          progress < 0 ? 'bg-destructive' : 'bg-primary'
+                        }`}
+                        style={{ width: `${progress < 0 ? 100 : progress}%` }}
                       ></div>
                     </div>
                   </div>
@@ -388,6 +373,7 @@ export default function UploadPage() {
               <li>Maximum file size is 100MB</li>
               <li>Supported formats: MP3, WAV, OGG, FLAC, AAC, M4A</li>
               <li>Add tags to individual files or set default tags for all files</li>
+              <li>Add images to represent your audio files</li>
               <li>Preview your audio before uploading</li>
               <li>You can upload multiple files at once</li>
               <li>Track upload progress in real-time</li>

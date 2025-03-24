@@ -28,6 +28,7 @@ model File {
   path          String
   type          String
   size          Int
+  imagePath     String?
   userId        String
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags          Tag[]

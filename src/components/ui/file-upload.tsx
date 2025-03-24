@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
-import { Upload, X, Play, Pause, Edit, Check } from 'lucide-react';
+import { Upload, X, Play, Pause, Edit, Check, Image as ImageIcon } from 'lucide-react';
 import { TagsInput } from '@/components/TagsInput';
 import { playAudio, AudioFile } from '@/components/GlobalAudioPlayer';
 
@@ -15,10 +15,12 @@ interface FileMetadata {
   previewUrl: string;
   displayName: string; // Custom filename for display and upload
   isEditingName: boolean; // Track if we're currently editing the name
+  image?: File; // Added for image upload
+  imagePreviewUrl?: string; // Preview URL for the image
 }
 
 interface FileUploadProps {
-  onUpload: (files: File[], fileTags: Record<string, string[]>, fileNames: Record<string, string>) => void;
+  onUpload: (files: File[], fileTags: Record<string, string[]>, fileNames: Record<string, string>, fileImages?: Record<string, File>) => void;
   multiple?: boolean;
   accept?: string;
   maxSize?: number; // in MB
@@ -134,12 +136,86 @@ export function FileUpload({
     setFileEntries(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleImageAdd = (index: number) => {
+    if (disabled) return;
+    
+    // Create a file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    // Add change event listener
+    input.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (!target.files || !target.files[0]) return;
+      
+      const file = target.files[0];
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: 'Invalid file type',
+          description: 'Please select an image file',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: 'Image size should be less than 5MB',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Update file entry with image
+      setFileEntries(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          image: file,
+          imagePreviewUrl: URL.createObjectURL(file)
+        };
+        return updated;
+      });
+    });
+    
+    // Trigger file selection dialog
+    input.click();
+  };
+  
+  const handleRemoveImage = (index: number) => {
+    if (disabled) return;
+    
+    setFileEntries(prev => {
+      const updated = [...prev];
+      const entry = updated[index];
+      
+      // Revoke object URL to prevent memory leaks
+      if (entry.imagePreviewUrl) {
+        URL.revokeObjectURL(entry.imagePreviewUrl);
+      }
+      
+      updated[index] = {
+        ...entry,
+        image: undefined,
+        imagePreviewUrl: undefined
+      };
+      
+      return updated;
+    });
+  };
+
   const handleUpload = () => {
     if (disabled) return;
     if (fileEntries.length > 0) {
       // Create a mapping of file names to their tags
       const fileTagsMap: Record<string, string[]> = {};
       const customFilenames: Record<string, string> = {};
+      const fileImages: Record<string, File> = {};
       const filesToUpload: File[] = [];
       
       // Loop through each file entry
@@ -151,12 +227,16 @@ export function FileUpload({
         filesToUpload.push(entry.file);
         
         // Store tags using index to guarantee correct matching
-        // Ensure tags is an array
         fileTagsMap[index.toString()] = Array.isArray(entry.tags) ? entry.tags : [];
         
         // Store custom filenames if they differ from the original
         if (entry.displayName && entry.file.name && entry.displayName !== entry.file.name) {
           customFilenames[index.toString()] = entry.displayName;
+        }
+        
+        // Store images if present
+        if (entry.image) {
+          fileImages[index.toString()] = entry.image;
         }
       });
 
@@ -164,14 +244,18 @@ export function FileUpload({
       console.log("Files to upload:", filesToUpload.map(f => f.name));
       console.log("Tags map:", fileTagsMap);
       console.log("Custom filenames:", customFilenames);
+      console.log("Images:", Object.keys(fileImages).length > 0 ? fileImages : "No images");
 
-      // Upload the files with their tag information and custom names
-      onUpload(filesToUpload, fileTagsMap, customFilenames);
+      // Upload the files with their tag information, custom names, and images
+      onUpload(filesToUpload, fileTagsMap, customFilenames, fileImages);
       
       // Clean up preview URLs after upload
       fileEntries.forEach(entry => {
         if (entry && entry.previewUrl) {
           URL.revokeObjectURL(entry.previewUrl);
+        }
+        if (entry && entry.imagePreviewUrl) {
+          URL.revokeObjectURL(entry.imagePreviewUrl);
         }
       });
       
@@ -389,6 +473,41 @@ export function FileUpload({
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Add image button */}
+                    {entry.imagePreviewUrl ? (
+                      <div className="relative h-8 w-8 mr-1">
+                        <img 
+                          src={entry.imagePreviewUrl} 
+                          alt="Preview" 
+                          className="h-full w-full object-cover rounded-md"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-0 right-0 h-4 w-4 bg-primary text-primary-foreground rounded-full p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage(index);
+                          }}
+                          disabled={disabled}
+                        >
+                          <X className="h-2 w-2" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleImageAdd(index);
+                        }}
+                        disabled={disabled}
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

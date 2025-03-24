@@ -31,6 +31,7 @@ interface File {
   size: number;
   createdAt: string;
   currentVersion: number;
+  imagePath?: string;
   tags: Array<{
     id: string;
     name: string;
@@ -398,6 +399,7 @@ function FilesPageContent() {
                 createdAt={new Date(file.createdAt)}
                 tags={file.tags}
                 currentVersion={file.currentVersion}
+                imagePath={file.imagePath}
                 onDelete={() => handleFileDeleted(file.id)}
               />
             ))}

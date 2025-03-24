@@ -19,13 +19,11 @@ run docker compose up
 ## TODO
 
 - improve speed of streaming
-- change name from files page
-- global player should be closed not minimized, also fix
 - actual sort by date and get from date from tags
-- complete uploads with gente: cxx, yl, ... and new beats
+- improve globalplayer
+- complete uploads with gente and new beats
 - public facing page with my music
 - actually good UI
-- images for covers
 - bpm and key ? automatic recgnition
 - User activity logging
 - API for external integrations
