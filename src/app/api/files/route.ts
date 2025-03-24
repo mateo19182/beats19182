@@ -10,23 +10,6 @@ export async function GET(request: NextRequest) {
   try {
     logger.info('Files fetch request received');
 
-    // Check authentication
-    const session = await getServerSession();
-    if (!session?.user?.email) {
-      logger.error('Unauthorized access attempt');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      logger.error(`User not found: ${session.user.email}`);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
     // Get search parameters
     const searchParams = new URL(request.url).searchParams;
     const searchQuery = searchParams.get('search') || '';
@@ -43,7 +26,6 @@ export async function GET(request: NextRequest) {
 
     // Create where clause for both count and query
     const whereClause: Prisma.FileWhereInput = {
-      userId: user.id,
       ...(searchQuery && {
         name: {
           contains: searchQuery,
@@ -69,48 +51,26 @@ export async function GET(request: NextRequest) {
 
     // Get files with search, filter, sort, and pagination parameters
     let files;
-    
-    if (sortBy === 'random') {
-      // For random sorting, first get all matching IDs
-      const fileIds = await prisma.file.findMany({
-        where: whereClause,
-        select: { id: true },
-      });
-      
-      // Shuffle the IDs (Fisher-Yates algorithm)
-      for (let i = fileIds.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [fileIds[i], fileIds[j]] = [fileIds[j], fileIds[i]];
-      }
-      
-      // Select paginated subset of shuffled IDs
-      const paginatedIds = fileIds
-        .slice(skip, skip + limit)
-        .map(file => file.id);
-      
-      // Fetch the files with these IDs
+    if (sortBy === 'name') {
       files = await prisma.file.findMany({
-        where: {
-          id: { in: paginatedIds },
-        },
+        where: whereClause,
         include: {
           tags: true,
         },
-      });
-      
-      // Preserve the random order by sorting based on the shuffled array
-      files.sort((a, b) => {
-        return paginatedIds.indexOf(a.id) - paginatedIds.indexOf(b.id);
+        orderBy: {
+          name: sortOrder as Prisma.SortOrder,
+        },
+        skip,
+        take: limit,
       });
     } else {
-      // For normal sorting
       files = await prisma.file.findMany({
         where: whereClause,
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
         include: {
           tags: true,
+        },
+        orderBy: {
+          createdAt: sortOrder as Prisma.SortOrder,
         },
         skip,
         take: limit,
@@ -119,13 +79,6 @@ export async function GET(request: NextRequest) {
 
     // Get all unique tags
     const allTags = await prisma.tag.findMany({
-      where: {
-        files: {
-          some: {
-            userId: user.id,
-          },
-        },
-      },
       orderBy: {
         name: 'asc',
       },

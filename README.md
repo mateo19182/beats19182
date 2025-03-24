@@ -18,10 +18,12 @@ run docker compose up
 
 ## TODO
 
-- improve speed of streaming
+- Serve only mp3 or smsller for play, dl original
+- optimize react loads
+- implement streaming
 - actual sort by date and get from date from tags
 - improve globalplayer
-- complete uploads with gente and new beats
+- complete uploads with gente and new beats -> dl on so high master
 - actually cool  UI
 - bpm and key ? automatic recgnition
 - User activity logging

@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut } from "next-auth/react";
-import { Menu, Upload, X } from "lucide-react";
+import { Menu, Upload, X, Github } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -67,10 +67,21 @@ export function Header() {
 
         {/* Auth section and mobile menu toggle */}
         <div className="flex items-center space-x-4">
+          {/* GitHub link */}
+          <a
+            href="https://github.com/mateo19182/beats19182"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:flex items-center space-x-1 hover:text-primary"
+          >
+            <Github className="h-4 w-4" />
+            <span className="text-sm"></span>
+          </a>
+
           {/* Auth buttons */}
           {session ? (
             <div className="flex items-center space-x-4">
-              <span className="text-sm">{session.user?.email}</span>
+              <span className="hidden md:inline text-sm">{session.user?.email}</span>
               <Button
                 onClick={() => signOut({ callbackUrl: '/' })}
                 className="px-4 py-2 text-sm"

@@ -48,8 +48,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       tags: formattedTags
     });
-  } catch (error: any) {
-    logger.error('Error fetching tags:', { error: error.message || 'Unknown error' });
-    return NextResponse.json({ error: 'Failed to fetch tags' }, { status: 500 });
+  } catch (error) {
+    console.error('Error in tags GET handler:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch tags' },
+      { status: 500 }
+    );
   }
 } 

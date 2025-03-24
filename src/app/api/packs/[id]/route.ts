@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
@@ -11,12 +10,6 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Check authentication
-    const session = await getServerSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = params;
     
     // Get the pack
