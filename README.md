@@ -22,8 +22,7 @@ run docker compose up
 - actual sort by date and get from date from tags
 - improve globalplayer
 - complete uploads with gente and new beats
-- public facing page with my music
-- actually good UI
+- actually cool  UI
 - bpm and key ? automatic recgnition
 - User activity logging
 - API for external integrations
