@@ -84,6 +84,10 @@ export async function GET(
       response.headers.set('Content-Type', file.type);
       response.headers.set('Content-Disposition', `attachment; filename="${file.name}"`);
       
+      // Add cache headers for browser caching
+      response.headers.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      response.headers.set('ETag', `"${file.id}-${version || 'latest'}"`); // Use file ID and version as ETag
+      
       return response;
     } catch (error: any) {
       logger.error('Error streaming file from MinIO:', { error: error.message || 'Unknown error' });

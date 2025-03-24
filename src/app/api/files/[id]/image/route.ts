@@ -265,7 +265,7 @@ export async function GET(
       
       // Set content type header based on image type
       response.headers.set('Content-Type', contentType);
-      response.headers.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      response.headers.set('Cache-Control', 'public, max-age=3153600'); // Cache for 1 year
       
       return response;
     } catch (error: any) {

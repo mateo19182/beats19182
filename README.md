@@ -27,7 +27,6 @@ run docker compose up
 - bpm and key ? automatic recgnition
 - User activity logging
 - API for external integrations
-- mobile version
 - Dark mode
 - visualizer
 
@@ -35,7 +34,7 @@ run docker compose up
 
 ### File Management
 - Users can upload various file types and store them securely using MinIO (S3-compatible object storage).
-- File metadata (name, type, size, etc.) is stored in a PostgreSQL database.
+- File metadata (name, type, size, images, etc.) is stored in a PostgreSQL database.
 - Secure access controls ensure only authorized users can manage files.
 
 ### Tagging System
