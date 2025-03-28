@@ -2,7 +2,7 @@
 
 This application is designed as an alternative to [OffTop](https://offtop.com/) with full control over their data. 
 
-You can view my own deployment [here](beats.m19182.dev)
+You can view my own deployment [here](https://beats.m19182.dev/)
 
 ## Overview
 Self-hosted platform for managing and sharing audio files with a structured tagging system. It allows users to upload files, organize them with tags, and create packs for easy sharing. The entire system runs on a local server without reliance on cloud services.
