@@ -22,7 +22,7 @@ export function Header() {
 
   // Handle logo click - go to files if logged in, otherwise go to homepage
   const handleLogoClick = () => {
-    navigate(session ? '/files' : '/');
+    navigate(session ? '/' : '/');
   };
 
   // Navigation items for both desktop and mobile

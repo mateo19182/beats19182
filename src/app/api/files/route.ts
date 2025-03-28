@@ -51,7 +51,25 @@ export async function GET(request: NextRequest) {
 
     // Get files with search, filter, sort, and pagination parameters
     let files;
-    if (sortBy === 'name') {
+    if (sortBy === 'random') {
+      // For random sorting, we need to fetch all matching files first
+      // and then manually randomize them
+      files = await prisma.file.findMany({
+        where: whereClause,
+        include: {
+          tags: true,
+        },
+      });
+      
+      // Shuffle the array using Fisher-Yates algorithm
+      for (let i = files.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [files[i], files[j]] = [files[j], files[i]];
+      }
+      
+      // Apply pagination manually after randomizing
+      files = files.slice(skip, skip + limit);
+    } else if (sortBy === 'name') {
       files = await prisma.file.findMany({
         where: whereClause,
         include: {

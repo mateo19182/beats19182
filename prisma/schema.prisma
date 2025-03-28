@@ -77,3 +77,9 @@ model Pack {
 
   @@index([userId])
 }
+
+model SystemStat {
+  key           String    @id
+  value         Int
+  updatedAt     DateTime  @updatedAt @default(now())
+}
