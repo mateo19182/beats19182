@@ -18,15 +18,13 @@ run docker compose up
 
 ## TODO
 
-- Serve only mp3 or smsller for play, dl original
+- Serve only opus 48kbps or smaller for play, dl original
 - optimize react loads
-- implement streaming
 - actual sort by date and get from date from tags
 - improve globalplayer
 - complete uploads with gente and new beats -> dl on so high master
 - actually cool  UI
 - bpm and key ? automatic recgnition
-- User activity logging
 - API for external integrations
 - Dark mode
 - visualizer

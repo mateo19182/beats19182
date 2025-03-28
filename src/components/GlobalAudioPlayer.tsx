@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WaveformPlayer } from './WaveformPlayer';
@@ -36,7 +36,6 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleAudioPlay = useCallback((event: Event) => {
     const customEvent = event as CustomEvent<AudioFile>;
@@ -50,8 +49,12 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
       return;
     }
     
-    // Otherwise use the API endpoint
-    setAudioSrc(`/api/files/${file.id}`);
+    // Set the API endpoint URL - now optimized for streaming
+    const url = file.version
+      ? `/api/files/${file.id}?version=${file.version}`
+      : `/api/files/${file.id}`;
+    
+    setAudioSrc(url);
     setIsPlaying(true);
   }, []);
 
@@ -72,43 +75,6 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
   const handleClose = () => {
     setCurrentFile(null);
     setIsPlaying(false);
-  };
-
-  const loadAudio = async (file: AudioFile) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Construct URL with version if provided
-      const url = file.version
-        ? `/api/files/${file.id}?version=${file.version}`
-        : `/api/files/${file.id}`;
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to load audio file');
-      }
-
-      const blob = await response.blob();
-      const audioUrl = URL.createObjectURL(blob);
-      
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.load();
-        setCurrentFile(file);
-      }
-    } catch (error) {
-      console.error('Error loading audio:', error);
-      setError('Failed to load audio file');
-      toast({
-        title: 'Error',
-        description: 'Failed to load audio file',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   if (!isVisible || !currentFile) return null;
@@ -150,4 +116,4 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
       </div>
     </div>
   );
-} 
+}

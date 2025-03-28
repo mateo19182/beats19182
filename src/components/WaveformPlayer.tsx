@@ -35,6 +35,7 @@ export function WaveformPlayer({
   cursorWidth = 1
 }: WaveformPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState("0:00");
@@ -75,10 +76,11 @@ export function WaveformPlayer({
       autoScroll: true,
       dragToSeek: true,
       interact: true,
+      // Use a backend that doesn't preload the entire file
+      backend: 'MediaElement',
+      // Connect to our audio element for streaming
+      media: audioRef.current || undefined
     });
-
-    // Load audio file
-    wavesurfer.load(audioUrl);
 
     // Set volume
     wavesurfer.setVolume(volume);
@@ -129,6 +131,11 @@ export function WaveformPlayer({
     
     setVolume(newVolume);
     wavesurferRef.current.setVolume(muted ? 0 : newVolume);
+    
+    // Also update the audio element volume
+    if (audioRef.current) {
+      audioRef.current.volume = muted ? 0 : newVolume;
+    }
   }, [muted]);
 
   // Handle mute toggle
@@ -138,10 +145,25 @@ export function WaveformPlayer({
     const newMuted = !muted;
     setMuted(newMuted);
     wavesurferRef.current.setVolume(newMuted ? 0 : volume);
+    
+    // Also update the audio element muted state
+    if (audioRef.current) {
+      audioRef.current.muted = newMuted;
+    }
   }, [muted, volume]);
 
   return (
     <div className={`flex flex-col w-full ${className}`}>
+      {/* Hidden audio element for streaming playback */}
+      <audio 
+        ref={audioRef} 
+        src={audioUrl} 
+        preload="auto"
+        onLoadStart={() => setLoading(true)}
+        onCanPlay={() => setLoading(false)}
+        style={{ display: 'none' }}
+      />
+      
       {/* Waveform */}
       <div className="relative">
         {loading && (
@@ -197,4 +219,4 @@ export function WaveformPlayer({
       </div>
     </div>
   );
-} 
+}

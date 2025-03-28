@@ -74,21 +74,61 @@ export async function GET(
     }
     
     try {
-      // Get a readable stream from MinIO
-      const fileStream = await minioClient.getObject(BUCKET_NAME, filePath);
+      // Check for Range header to support streaming
+      const rangeHeader = request.headers.get('range');
       
-      // Create a new response with appropriate headers
-      const response = new Response(Readable.toWeb(fileStream) as ReadableStream);
+      // Get stats for the file to determine size
+      const stat = await minioClient.statObject(BUCKET_NAME, filePath);
+      const fileSize = stat.size;
       
-      // Set content type header based on file type
-      response.headers.set('Content-Type', file.type);
-      response.headers.set('Content-Disposition', `attachment; filename="${file.name}"`);
-      
-      // Add cache headers for browser caching
-      response.headers.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-      response.headers.set('ETag', `"${file.id}-${version || 'latest'}"`); // Use file ID and version as ETag
-      
-      return response;
+      if (rangeHeader) {
+        // Parse the range header
+        const parts = rangeHeader.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        
+        // Ensure valid ranges
+        const chunkSize = end - start + 1;
+        if (start >= fileSize || end >= fileSize) {
+          // Return 416 Range Not Satisfiable if the range is invalid
+          return new Response(null, {
+            status: 416,
+            headers: {
+              'Content-Range': `bytes */${fileSize}`
+            }
+          });
+        }
+        
+        // Get partial content from MinIO
+        const fileStream = await minioClient.getPartialObject(BUCKET_NAME, filePath, start, chunkSize);
+        
+        // Create a new response with appropriate headers for range request
+        const response = new Response(Readable.toWeb(fileStream) as ReadableStream);
+        
+        response.headers.set('Content-Type', file.type);
+        response.headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+        response.headers.set('Accept-Ranges', 'bytes');
+        response.headers.set('Content-Length', String(chunkSize));
+        response.headers.set('Cache-Control', 'public, max-age=31536000');
+        response.headers.set('ETag', `"${file.id}-${version || 'latest'}"`);
+        
+        return response;
+      } else {
+        // Full file request (no range header)
+        const fileStream = await minioClient.getObject(BUCKET_NAME, filePath);
+        
+        // Create a new response with appropriate headers
+        const response = new Response(Readable.toWeb(fileStream) as ReadableStream);
+        
+        // Set content type header based on file type
+        response.headers.set('Content-Type', file.type);
+        response.headers.set('Content-Length', String(fileSize));
+        response.headers.set('Accept-Ranges', 'bytes'); // Indicate that range requests are supported
+        response.headers.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        response.headers.set('ETag', `"${file.id}-${version || 'latest'}"`); // Use file ID and version as ETag
+        
+        return response;
+      }
     } catch (error: any) {
       logger.error('Error streaming file from MinIO:', { error: error.message || 'Unknown error' });
       return NextResponse.json({ error: 'Failed to stream file' }, { status: 500 });
@@ -151,5 +191,3 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update file' }, { status: 500 });
   }
 }
-
-// Legacy GET handler removed to fix build issues 
