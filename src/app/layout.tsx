@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ClientLayout } from "@/components/ClientLayout";
+import { UmamiScript } from "@/components/UmamiScript";
 import initializeServices from "@/lib/init";
 
 // Initialize services on server startup
@@ -50,6 +51,7 @@ export default function RootLayout({
             </ClientLayout>
           </div>
         </AuthProvider>
+        <UmamiScript />
       </body>
     </html>
   );
