@@ -42,7 +42,8 @@ export function WaveformPlayer({
   const [duration, setDuration] = useState("0:00");
   const [volume, setVolume] = useState(0.75);
   const [muted, setMuted] = useState(false);
-  
+  const [isInitialized, setIsInitialized] = useState(false);
+
   // Format time in minutes:seconds
   const formatTime = (seconds: number): string => {
     if (!seconds || isNaN(seconds)) return "0:00";
@@ -53,14 +54,18 @@ export function WaveformPlayer({
 
   // Initialize WaveSurfer
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !audioUrl) return;
 
     // Clean up previous instance
     if (wavesurferRef.current) {
       wavesurferRef.current.destroy();
+      wavesurferRef.current = null;
     }
 
     setLoading(true);
+    setIsInitialized(false);
+    setCurrentTime("0:00");
+    setDuration("0:00");
 
     // Create waveform
     const wavesurfer = WaveSurfer.create({
@@ -88,6 +93,7 @@ export function WaveformPlayer({
     // Events
     wavesurfer.on('ready', () => {
       setLoading(false);
+      setIsInitialized(true);
       setDuration(formatTime(wavesurfer.getDuration()));
       
       if (playing) {
@@ -110,9 +116,10 @@ export function WaveformPlayer({
     return () => {
       if (wavesurferRef.current) {
         wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
       }
     };
-  }, [audioUrl]);
+  }, [audioUrl, height, waveColor, progressColor, barWidth, barGap, barRadius, cursorColor, cursorWidth]);
 
   // Handle play/pause changes from parent
   useEffect(() => {
@@ -166,15 +173,16 @@ export function WaveformPlayer({
       
       {/* Waveform */}
       <div className="relative">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-muted/20 rounded-md">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        {(loading || !isInitialized) && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/10 rounded-md z-10">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
+            <div className="text-xs text-muted-foreground">Loading audio...</div>
           </div>
         )}
         <div 
           ref={containerRef} 
-          className="w-full cursor-pointer rounded-md overflow-hidden wavesurfer-container"
-          style={{ backgroundColor: 'var(--card)' }}
+          className={`w-full cursor-pointer rounded-md overflow-hidden wavesurfer-container ${loading || !isInitialized ? 'opacity-30' : 'opacity-100'}`}
+          style={{ backgroundColor: 'var(--card)', transition: 'opacity 0.3s ease' }}
         />
       </div>
       

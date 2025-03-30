@@ -103,6 +103,7 @@ export function GlobalAudioPlayer({ isVisible = true }: GlobalAudioPlayerProps) 
       
       <div className="px-4 pt-0 pb-1">
         <WaveformPlayer 
+          key={audioSrc}
           audioUrl={audioSrc}
           playing={isPlaying}
           onPlayPause={handlePlayPause}
