@@ -5,8 +5,8 @@ import { logger } from '@/lib/logger';
 import { minioClient, BUCKET_NAME, generateObjectName } from '@/lib/minio';
 import crypto from 'crypto';
 
-// Maximum file size (100MB)
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+// Maximum file size (250MB)
+const MAX_FILE_SIZE = 250 * 1024 * 1024;
 
 // Allowed file types
 const ALLOWED_FILE_TYPES = [
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_FILE_SIZE) {
       logger.error(`File too large`, fileInfo);
       return NextResponse.json(
-        { error: 'File size exceeds the limit (100MB)' },
+        { error: 'File size exceeds the limit (250MB)' },
         { status: 400 }
       );
     }
@@ -370,8 +370,6 @@ export async function POST(request: NextRequest) {
         type: fileRecord.type,
         size: fileRecord.size,
         currentVersion: fileRecord.currentVersion,
-        versions: fileRecord.versions,
-        tags: fileRecord.tags, // Include tags in the response
         processingTime: endTime - startTime
       },
     });

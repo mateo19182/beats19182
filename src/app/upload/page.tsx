@@ -145,82 +145,140 @@ export default function UploadPage() {
         try {
           // Upload the file
           addLog(`Uploading ${customFileName}...`, 'info');
-          setUploadProgress(prev => ({ ...prev, [fileProgressId]: 30 }));
           
-          const uploadResponse = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          setUploadProgress(prev => ({ ...prev, [fileProgressId]: 70 }));
-          
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json();
-            throw new Error(errorData.error || `Failed to upload ${file.name}`);
-          }
-          
-          const uploadResult = await uploadResponse.json();
-          
-          // Log the upload result details
-          if (uploadResult.message === 'File updated with same content') {
-            addLog(`File ${customFileName} was updated as it already existed with the same content`, 'success');
-          } else if (uploadResult.file.currentVersion > 1) {
-            addLog(`File ${customFileName} was uploaded as version ${uploadResult.file.currentVersion}`, 'success');
-          } else {
-            addLog(`File ${customFileName} was uploaded successfully`, 'success');
-          }
-          
-          // If we have an image for this file, upload it
-          if (fileImages && fileImages[fileIndex]) {
-            addLog(`Uploading image for ${customFileName}...`, 'pending');
+          // Use XMLHttpRequest instead of fetch to track upload progress
+          const xhr = new XMLHttpRequest();
+          const uploadPromise = new Promise<any>((resolve, reject) => {
+            xhr.open('POST', '/api/upload');
             
-            const fileId = uploadResult.file.id;
-            const imageFormData = new FormData();
-            imageFormData.append('image', fileImages[fileIndex]);
-            
-            const imageResponse = await fetch(`/api/files/${fileId}/image`, {
-              method: 'POST',
-              body: imageFormData,
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+              if (event.lengthComputable) {
+                const percentComplete = Math.round((event.loaded / event.total) * 100);
+                setUploadProgress(prev => ({ ...prev, [fileProgressId]: percentComplete }));
+              }
             });
             
-            if (!imageResponse.ok) {
-              const errorData = await imageResponse.json();
-              addLog(`Warning: Failed to upload image for ${customFileName}: ${errorData.error}`, 'error');
-              console.error(`Failed to upload image for ${file.name}:`, errorData.error);
-              // Continue execution even if image upload fails
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const uploadResult = JSON.parse(xhr.responseText);
+                  resolve(uploadResult);
+                } catch (error) {
+                  reject(new Error('Invalid JSON response'));
+                }
+              } else {
+                try {
+                  const errorData = JSON.parse(xhr.responseText);
+                  reject(new Error(errorData.error || `Failed to upload ${file.name}`));
+                } catch (error) {
+                  reject(new Error(`Failed to upload ${file.name} (HTTP ${xhr.status})`));
+                }
+              }
+            };
+            
+            xhr.onerror = () => {
+              reject(new Error(`Network error during upload of ${file.name}`));
+            };
+            
+            xhr.send(formData);
+          });
+          
+          try {
+            const uploadResult = await uploadPromise;
+            
+            // Log the upload result details
+            if (uploadResult.message === 'File updated with same content') {
+              addLog(`File ${customFileName} was updated as it already existed with the same content`, 'success');
+            } else if (uploadResult.file.currentVersion > 1) {
+              addLog(`File ${customFileName} was uploaded as version ${uploadResult.file.currentVersion}`, 'success');
             } else {
-              addLog(`Image uploaded for ${customFileName}`, 'success');
+              addLog(`File ${customFileName} was uploaded successfully`, 'success');
             }
+            
+            // If we have an image for this file, upload it
+            if (fileImages && fileImages[fileIndex]) {
+              addLog(`Uploading image for ${customFileName}...`, 'pending');
+              
+              const fileId = uploadResult.file.id;
+              const imageFormData = new FormData();
+              imageFormData.append('image', fileImages[fileIndex]);
+              
+              // Use XMLHttpRequest for image upload too to track progress
+              const imageXhr = new XMLHttpRequest();
+              const imageUploadPromise = new Promise<void>((resolve, reject) => {
+                imageXhr.open('POST', `/api/files/${fileId}/image`);
+                
+                // Track image upload progress (updating same progress bar)
+                imageXhr.upload.addEventListener('progress', (event) => {
+                  if (event.lengthComputable) {
+                    // Scale progress to 70-95% range for image upload phase
+                    const percentComplete = 70 + Math.round((event.loaded / event.total) * 25);
+                    setUploadProgress(prev => ({ ...prev, [fileProgressId]: percentComplete }));
+                  }
+                });
+                
+                imageXhr.onload = () => {
+                  if (imageXhr.status >= 200 && imageXhr.status < 300) {
+                    resolve();
+                  } else {
+                    try {
+                      const errorData = JSON.parse(imageXhr.responseText);
+                      reject(new Error(errorData.error || `Failed to upload image for ${file.name}`));
+                    } catch (error) {
+                      reject(new Error(`Failed to upload image for ${file.name} (HTTP ${imageXhr.status})`));
+                    }
+                  }
+                };
+                
+                imageXhr.onerror = () => {
+                  reject(new Error(`Network error during image upload for ${file.name}`));
+                };
+                
+                imageXhr.send(imageFormData);
+              });
+              
+              try {
+                await imageUploadPromise;
+                addLog(`Image uploaded for ${customFileName}`, 'success');
+              } catch (error: any) {
+                addLog(`Warning: Failed to upload image for ${customFileName}: ${error.message}`, 'error');
+                console.error(`Failed to upload image for ${file.name}:`, error);
+                // Continue execution even if image upload fails
+              }
+            }
+            
+            // Mark as complete
+            setUploadProgress(prev => ({ ...prev, [fileProgressId]: 100 }));
+            
+            // Increment success count
+            setSuccessCount(prev => prev + 1);
+            
+            // Log success
+            // addLog(`Successfully uploaded ${customFileName}`, 'success');
+          } catch (error) {
+            console.error(`Error uploading ${file.name}:`, error);
+            
+            // Log error
+            addLog(`Failed to upload ${customFileName}: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            
+            setErrors(prev => [
+              ...prev,
+              {
+                fileName: file.name,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              },
+            ]);
+            
+            // Mark as failed in progress
+            setUploadProgress(prev => ({ ...prev, [fileProgressId]: -1 }));
           }
           
-          // Mark as complete
-          setUploadProgress(prev => ({ ...prev, [fileProgressId]: 100 }));
-          
-          // Increment success count
-          setSuccessCount(prev => prev + 1);
-          
-          // Log success
-          // addLog(`Successfully uploaded ${customFileName}`, 'success');
+          // Update overall progress
+          setProgress(Math.round(((i + 1) / totalFiles) * 100));
         } catch (error) {
           console.error(`Error uploading ${file.name}:`, error);
-          
-          // Log error
-          addLog(`Failed to upload ${customFileName}: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-          
-          setErrors(prev => [
-            ...prev,
-            {
-              fileName: file.name,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          ]);
-          
-          // Mark as failed in progress
-          setUploadProgress(prev => ({ ...prev, [fileProgressId]: -1 }));
         }
-        
-        // Update overall progress
-        setProgress(Math.round(((i + 1) / totalFiles) * 100));
       }
       
       // Final log
@@ -309,7 +367,7 @@ export default function UploadPage() {
             onUpload={handleUpload} 
             multiple={true} 
             accept="audio/*"
-            maxSize={100}
+            maxSize={250}
             disabled={isUploading}
             suggestedTags={suggestedTags}
             defaultTags={tags}
