@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,11 @@ import {
   Save, 
   ArrowLeft, 
   Plus, 
-  Trash2 
+  Trash2,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { FileCard } from '@/components/FileCard';
@@ -44,9 +48,17 @@ interface Pack {
   files: File[];
 }
 
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+}
+
 export default function PackDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const packId = params.id as string;
   
@@ -62,6 +74,33 @@ export default function PackDetailPage() {
   const [allFiles, setAllFiles] = useState<File[]>([]);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  
+  // Search and pagination state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  });
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1
+    }));
+  }, [debouncedSearchQuery]);
   
   // Fetch pack details
   const fetchPack = async () => {
@@ -95,20 +134,34 @@ export default function PackDetailPage() {
     }
   };
   
-  // Fetch all files
+  // Fetch all files with search and pagination
   const fetchAllFiles = async () => {
     try {
       setIsLoadingFiles(true);
       
-      const response = await fetch('/api/files');
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
+      params.append('page', pagination.currentPage.toString());
+      params.append('limit', pagination.itemsPerPage.toString());
+      
+      const response = await fetch(`/api/files?${params.toString()}`);
       
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to fetch files');
       }
       
-      const { files } = await response.json();
-      setAllFiles(files);
+      const data = await response.json();
+      setAllFiles(data.files);
+      
+      // Update pagination info
+      setPagination({
+        currentPage: data.pagination.currentPage,
+        totalPages: data.pagination.totalPages,
+        totalItems: data.pagination.totalItems,
+        itemsPerPage: data.pagination.itemsPerPage
+      });
     } catch (error) {
       console.error('Error fetching files:', error);
       
@@ -124,8 +177,39 @@ export default function PackDetailPage() {
   
   // Load data on mount
   useEffect(() => {
-    Promise.all([fetchPack(), fetchAllFiles()]);
+    Promise.all([fetchPack()]);
   }, [packId]);
+
+  // Fetch files when search or pagination parameters change
+  useEffect(() => {
+    fetchAllFiles();
+  }, [debouncedSearchQuery, pagination.currentPage, pagination.itemsPerPage]);
+  
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > pagination.totalPages) return;
+    
+    setPagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+  };
+
+  // Handle items per page change
+  const handleItemsPerPageChange = (value: string) => {
+    const newItemsPerPage = parseInt(value);
+    
+    setPagination(prev => ({
+      ...prev,
+      itemsPerPage: newItemsPerPage,
+      currentPage: 1 // Reset to first page when changing items per page
+    }));
+  };
+  
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+  };
   
   // Save pack changes
   const handleSave = async () => {
@@ -356,7 +440,31 @@ export default function PackDetailPage() {
         
         {/* Right column - All files */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Files</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Files</h2>
+            
+            {/* Search input */}
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search files..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1 h-7 w-7 p-0"
+                  onClick={clearSearch}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
           
           {isLoadingFiles ? (
             <div className="flex items-center justify-center py-8">
@@ -364,53 +472,111 @@ export default function PackDetailPage() {
             </div>
           ) : allFiles.length === 0 ? (
             <div className="bg-muted/50 p-4 rounded-md text-center">
-              <p className="text-muted-foreground">You don't have any audio files yet.</p>
-              <Button
-                className="mt-4"
-                onClick={() => router.push('/upload')}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Upload Files
-              </Button>
+              <p className="text-muted-foreground">
+                {debouncedSearchQuery 
+                  ? "No files match your search query." 
+                  : "You don't have any audio files yet."}
+              </p>
+              {!debouncedSearchQuery && (
+                <Button
+                  className="mt-4"
+                  onClick={() => router.push('/upload')}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Upload Files
+                </Button>
+              )}
+              {debouncedSearchQuery && (
+                <Button
+                  className="mt-4"
+                  variant="outline"
+                  onClick={clearSearch}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Search
+                </Button>
+              )}
             </div>
           ) : (
-            <div className="space-y-4">
-              {allFiles.map((file) => (
-                <div key={file.id} className="border rounded-lg p-3">
-                  <div className="flex items-center">
-                    <Checkbox
-                      id={`file-${file.id}`}
-                      checked={selectedFileIds.has(file.id)}
-                      onCheckedChange={() => toggleFileSelection(file.id)}
-                      className="mr-3"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <label
-                        htmlFor={`file-${file.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            <>
+              <div className="space-y-4 mb-4">
+                {allFiles.map((file) => (
+                  <div key={file.id} className="border rounded-lg p-3">
+                    <div className="flex items-center">
+                      <Checkbox
+                        id={`file-${file.id}`}
+                        checked={selectedFileIds.has(file.id)}
+                        onCheckedChange={() => toggleFileSelection(file.id)}
+                        className="mr-3"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <label
+                          htmlFor={`file-${file.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {file.name}
+                        </label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDistanceToNow(new Date(file.createdAt), { addSuffix: true })}
+                          {file.tags.length > 0 && (
+                            <span className="ml-2">
+                              Tags: {file.tags.map(tag => tag.name).join(', ')}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleFileSelection(file.id)}
                       >
-                        {file.name}
-                      </label>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(new Date(file.createdAt), { addSuffix: true })}
-                        {file.tags.length > 0 && (
-                          <span className="ml-2">
-                            Tags: {file.tags.map(tag => tag.name).join(', ')}
-                          </span>
-                        )}
-                      </p>
+                        {selectedFileIds.has(file.id) ? 'Remove' : 'Add'}
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleFileSelection(file.id)}
-                    >
-                      {selectedFileIds.has(file.id) ? 'Remove' : 'Add'}
-                    </Button>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Pagination controls */}
+              {pagination.totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {Math.min((pagination.currentPage - 1) * pagination.itemsPerPage + 1, pagination.totalItems)} to {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of {pagination.totalItems} files
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handlePageChange(pagination.currentPage - 1)}
+                        disabled={pagination.currentPage === 1}
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      
+                      <div className="flex items-center mx-2">
+                        {/* Simplified page indicator for mobile */}
+                        <span className="text-sm mx-2">
+                          {pagination.currentPage} / {pagination.totalPages}
+                        </span>
+                      </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handlePageChange(pagination.currentPage + 1)}
+                        disabled={pagination.currentPage === pagination.totalPages}
+                        aria-label="Next page"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -419,4 +585,4 @@ export default function PackDetailPage() {
       <GlobalAudioPlayer />
     </div>
   );
-} 
+}

@@ -401,6 +401,7 @@ function FilesPageContent() {
                 currentVersion={file.currentVersion}
                 imagePath={file.imagePath}
                 onDelete={() => handleFileDeleted(file.id)}
+                allowAddToPack={true}
               />
             ))}
           </div>
